@@ -67,8 +67,12 @@ class Trigger(ABC):
             clean batch to build the clean-accuracy view.
         """
 
-    def ground_truth_mask(self) -> Tensor | None:
+    def ground_truth_mask(self, image_size: tuple[int, int]) -> Tensor | None:
         """The pixels this trigger actually modifies, as a ``(1, H, W)`` mask.
+
+        Args:
+            image_size: ``(H, W)`` of the victim task, since a trigger may be
+                reused across datasets of different resolution.
 
         Returns ``None`` for triggers with no localised support — global blends,
         warps, and per-sample triggers. That is not a gap in the implementation:
