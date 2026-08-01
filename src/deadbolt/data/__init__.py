@@ -1,5 +1,6 @@
 """Dataset loading and poisoning."""
 
+from deadbolt.data.datasets import SPECS, DatasetSpec, Normalize, load_clean
 from deadbolt.data.poison import (
     AsrDataset,
     PoisonedDataset,
@@ -9,6 +10,10 @@ from deadbolt.data.poison import (
 )
 
 __all__ = [
+    "DatasetSpec",
+    "SPECS",
+    "Normalize",
+    "load_clean",
     "PoisonedDataset",
     "AsrDataset",
     "PoisonSpec",
