@@ -22,16 +22,26 @@ from torch import Tensor, nn
 class BackdoorModel(nn.Module):
     """Base class fixing the feature-extraction contract.
 
-    Subclasses implement :meth:`penultimate` and expose :attr:`head`, the final
+    Subclasses implement :meth:`_features` and expose :attr:`head`, the final
     linear layer. Fine-pruning also relies on this split to locate the layer
     whose channels it prunes.
+
+    Normalisation lives here, inside the network, so the model's public input
+    domain is ``[0, 1]`` — the same space triggers and reconstructed masks
+    occupy. Defenses can therefore optimise directly on pixels without knowing
+    dataset statistics.
     """
 
     head: nn.Linear
+    normalize: nn.Module
 
     @abstractmethod
+    def _features(self, x: Tensor) -> Tensor:
+        """Penultimate features of an already-normalised batch, ``(B, D)``."""
+
     def penultimate(self, x: Tensor) -> Tensor:
-        """Features feeding the classifier head, shape ``(B, D)``."""
+        """Features feeding the classifier head, from a ``[0, 1]`` batch."""
+        return self._features(self.normalize(x))
 
     def forward(self, x: Tensor) -> Tensor:
         return self.head(self.penultimate(x))
@@ -55,9 +65,11 @@ class SmallCNN(BackdoorModel):
         num_classes: int = 10,
         in_channels: int = 1,
         width: int = 32,
+        normalize: nn.Module | None = None,
     ) -> None:
         super().__init__()
         w = width
+        self.normalize = normalize if normalize is not None else nn.Identity()
 
         def block(cin: int, cout: int) -> nn.Sequential:
             return nn.Sequential(
@@ -77,5 +89,5 @@ class SmallCNN(BackdoorModel):
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.head = nn.Linear(4 * w, num_classes)
 
-    def penultimate(self, x: Tensor) -> Tensor:
+    def _features(self, x: Tensor) -> Tensor:
         return torch.flatten(self.pool(self.features(x)), 1)
