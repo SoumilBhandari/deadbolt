@@ -9,8 +9,9 @@ __pycache__/
 
 # Deadbolt storage root — datasets, checkpoints, model zoo.
 # Never commit these; they are reproducible from configs + seeds.
-runs/
-data/
+# Leading slash anchors to repo root so src/deadbolt/data/ is NOT ignored.
+/runs/
+/data/
 *.pt
 *.pth
 *.ckpt
