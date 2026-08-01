@@ -1,0 +1,26 @@
+# Environments
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Deadbolt storage root — datasets, checkpoints, model zoo.
+# Never commit these; they are reproducible from configs + seeds.
+runs/
+data/
+*.pt
+*.pth
+*.ckpt
+
+# Results: raw records ARE committed (see results/README.md).
+# Generated figures and scratch are not.
+results/**/figures/
+results/**/*.png
+results/**/*.pdf
+scratch/
+
+# OS
+.DS_Store
