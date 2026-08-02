@@ -1,0 +1,79 @@
+# Tier B (lite) — CIFAR-10 on a laptop, in about two hours instead of fourteen.
+#
+# The full tierB_cifar10.yaml is the publication-grade sweep: PreAct ResNet-18
+# at width 64, 30 epochs, three seeds, 84 models. On an M-series GPU that is
+# roughly 14 hours, which is the right cost for a result you intend to cite and
+# the wrong cost for a result you intend to *check*.
+#
+# This config trades precision for turnaround, and is explicit about what it
+# gives up:
+#
+#   - PreAct ResNet-10 (one block per stage) instead of -18. Same architecture
+#     family, same pre-activation ordering, roughly 40% of the compute. Expect
+#     a couple of points below the ~94% a fully-trained ResNet-18 reaches, so
+#     numbers from this config should NOT be placed next to published ones.
+#   - 20 epochs instead of 30, and two seeds instead of three. Seed variance is
+#     therefore estimated from two points, which is enough to notice a problem
+#     and not enough to quote an error bar.
+#   - One poison rate per attack rather than a sweep. The low-rate regime is
+#     where defenses actually degrade, so where a single rate is kept it is the
+#     lower one.
+#
+# What it does NOT give up is the part that makes Tier B worth running at all:
+# CIFAR-10 has enough natural texture for clean-label attacks to implant, which
+# on MNIST they cannot. SIG and Label-Consistent are filtered out of every Tier
+# A run on the ASR precondition; here they should survive it.
+
+name: tierB_lite
+dataset: cifar10
+arch: preactresnet10
+width: 64
+epochs: 20
+batch_size: 128
+lr: 0.1
+augment: true
+defender_per_class: 50
+seeds: [0, 1]
+
+attacks:
+  - attack: badnets
+    poison_rates: [0.005, 0.01]
+    label_modes: [all2one]
+    targets: [0]
+    kwargs: {patch_size: 3, margin: 1}
+
+  # The structural blind spot: reconstruction defenses assume exactly one class
+  # is unusually reachable, and here every class is.
+  - attack: badnets
+    poison_rates: [0.05]
+    label_modes: [all2all]
+    kwargs: {patch_size: 3, margin: 1}
+
+  - attack: blended
+    poison_rates: [0.01]
+    targets: [0]
+    kwargs: {alpha: 0.15}
+
+  - attack: wanet
+    poison_rates: [0.05]
+    targets: [0]
+    kwargs: {k: 4, s: 0.5}
+
+  # The two that Tier A cannot test at all.
+  - attack: sig
+    poison_mode: clean_label
+    poison_rates: [0.05]
+    targets: [0]
+    kwargs: {delta: 0.0784, frequency: 6}
+
+  - attack: label_consistent
+    poison_mode: clean_label
+    poison_rates: [0.05]
+    targets: [0]
+    kwargs: {epsilon: 0.0627, pgd_steps: 10}
+
+  - attack: adaptive_blend
+    poison_rates: [0.01]
+    targets: [0]
+    cover_rates: [0.01]
+    kwargs: {alpha: 0.2, train_pieces: 8}
