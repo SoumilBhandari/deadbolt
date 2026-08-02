@@ -348,3 +348,56 @@ def test_zoo_summary_and_report_agree_on_attack_names():
     assert set(s["by_attack"]) == {
         attack_key({"attack": "badnets", "label_mode": m}) for m in ("all2one", "all2all")
     }
+
+
+def test_report_and_aggregate_describe_the_same_population(tmp_path):
+    """report.md and aggregate.json must not be two results under one commit.
+
+    Both report over the evaluation half with thresholds from the calibration
+    half. If they disagreed, whichever was easier to load is the one that would
+    get cited.
+    """
+    import json as _json
+
+    from deadbolt.report import _split_calibration, model_level, write_report
+
+    scans = []
+    for i in range(24):
+        poisoned = i % 2 == 0
+        scans.append(
+            {
+                "checkpoint": f"m{i}.pt",
+                "defense": "neural_cleanse",
+                "truth": {
+                    "is_backdoored": poisoned,
+                    "attack": "badnets" if poisoned else None,
+                    "label_mode": "all2one" if poisoned else None,
+                    "poison_rate": 0.05 if poisoned else 0.0,
+                },
+                "result": {
+                    "is_backdoored": poisoned,
+                    "score": 5.0 if poisoned else 1.0,
+                    "target_label": 0,
+                    "runtime_s": 1.0,
+                    "aux_scores": {},
+                    "extra": {},
+                },
+                "per_sample_auc": None,
+                "mask_iou": None,
+                "target_correct": None,
+                "error": None,
+            }
+        )
+
+    write_report("t", tmp_path, scans, [])
+    agg = _json.loads((tmp_path / "aggregate.json").read_text())
+
+    calib, evalset = _split_calibration(scans)
+    expected = model_level(
+        [s for s in scans if s["checkpoint"] in evalset],
+        calibration=[s for s in scans if s["checkpoint"] in calib],
+    )
+    assert agg["model_level"]["neural_cleanse"]["auc"] == expected["neural_cleanse"]["auc"]
+    assert agg["population"]["n_eval_scans"] + agg["population"]["n_calibration_scans"] == len(
+        scans
+    )

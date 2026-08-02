@@ -476,19 +476,41 @@ def _aux_section(scans: list[dict], calibration: list[dict] | None = None) -> st
 
 
 def write_report(zoo: str, out_dir: Path, scans: list[dict], manifest: list[Any]) -> Path:
-    """Write ``report.md`` plus the machine-readable aggregate beside it."""
+    """Write ``report.md`` plus the machine-readable aggregate beside it.
+
+    The two must agree. ``aggregate.json`` therefore reports over the *same*
+    evaluation half, with the same calibration half supplying thresholds — a
+    JSON file quoting whole-zoo numbers next to a markdown file quoting
+    held-out numbers is two different results under one commit, and whichever
+    someone cites will be the one that was easier to load.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     text = build_report(zoo, scans, manifest)
     path = out_dir / "report.md"
     path.write_text(text)
 
+    from deadbolt.zoo import summarise
+
+    calib, evalset = _split_calibration(scans)
+    eval_scans = [s for s in scans if s["checkpoint"] in evalset]
+    calib_scans = [s for s in scans if s["checkpoint"] in calib]
+
     aggregate = {
         "zoo": zoo,
-        "model_level": model_level(scans),
-        "per_attack": {f"{d}|{a}": v for (d, a), v in per_attack(scans).items()},
+        "population": {
+            "n_scans": len(scans),
+            "n_eval_scans": len(eval_scans),
+            "n_calibration_scans": len(calib_scans),
+            "n_errors": sum(1 for s in scans if s.get("error")),
+        },
+        "manifest": summarise(manifest),
+        "model_level": model_level(eval_scans, calibration=calib_scans),
+        "per_attack": {f"{d}|{a}": v for (d, a), v in per_attack(eval_scans).items()},
         "aux": {
             f"{name}|{key}": model_level(
-                [s for s in scans if s["defense"] == name], score_key=key
+                [s for s in eval_scans if s["defense"] == name],
+                score_key=key,
+                calibration=[s for s in calib_scans if s["defense"] == name],
             ).get(name)
             for name, key in _aux_keys(scans)
         },
