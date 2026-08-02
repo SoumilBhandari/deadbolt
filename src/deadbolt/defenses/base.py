@@ -186,6 +186,14 @@ class Detector(ABC):
     #: those with a per-sample AUC against the hidden poison mask.
     produces_sample_verdict: bool = False
 
+    #: Whether ``is_backdoored`` uses a threshold the *paper* specifies.
+    #: Neural Cleanse publishes one (anomaly index > 2). Spectral Signatures
+    #: and Activation Clustering publish a per-sample ranking and no
+    #: model-level cut at all, so their verdict column reflects a threshold
+    #: deadbolt chose. Reporting the two as if they were the same kind of
+    #: number would credit or blame a paper for our decision.
+    published_threshold: bool = True
+
     @abstractmethod
     def scan(
         self,

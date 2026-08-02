@@ -1,0 +1,69 @@
+# Tier A — MNIST + SmallCNN.
+#
+# Sized so the full build -> scan -> report cycle finishes in well under an
+# hour on a laptop. That is the entire point of Tier A: a benchmark you cannot
+# re-run after changing one line is a benchmark nobody re-runs, and every
+# conclusion here should be reproducible before you have finished your coffee.
+#
+# The sweep is deliberately unbalanced towards low poison rates. Every defense
+# in the literature degrades as the poisoned subpopulation shrinks, and eps=5%
+# is a much friendlier world than anyone actually operates in.
+
+name: tierA
+dataset: mnist
+arch: smallcnn
+width: 32
+epochs: 5
+batch_size: 128
+lr: 0.01
+augment: true
+defender_per_class: 50
+seeds: [0, 1, 2]
+
+attacks:
+  # Positive control. If Neural Cleanse cannot recover this, our Neural
+  # Cleanse is broken, not the method.
+  - attack: badnets
+    poison_rates: [0.005, 0.01, 0.05]
+    label_modes: [all2one]
+    targets: [0, 7]
+    kwargs: {patch_size: 3, margin: 1}
+
+  # The all2all case, which trigger reconstruction is structurally unable to
+  # detect: its outlier test assumes exactly one class is unusually reachable.
+  - attack: badnets
+    poison_rates: [0.05]
+    label_modes: [all2all]
+    kwargs: {patch_size: 3, margin: 1}
+
+  # Global blend: no sparse mask exists to reconstruct.
+  - attack: blended
+    poison_rates: [0.01, 0.05]
+    targets: [0]
+    kwargs: {alpha: 0.15}
+
+  # Warp. The reconstruction-killer, and with noise mode the STRIP-killer.
+  - attack: wanet
+    poison_rates: [0.05, 0.1]
+    targets: [0]
+    kwargs: {k: 4, s: 0.5}
+
+  # Clean-label: every label in the dataset is correct.
+  - attack: sig
+    poison_mode: clean_label
+    poison_rates: [0.05, 0.1]
+    targets: [0]
+    kwargs: {delta: 0.0784, frequency: 6}
+
+  - attack: label_consistent
+    poison_mode: clean_label
+    poison_rates: [0.05, 0.1]
+    targets: [0]
+    kwargs: {epsilon: 0.0627, pgd_steps: 10}
+
+  # Purpose-built to break latent-statistics defenses.
+  - attack: adaptive_blend
+    poison_rates: [0.01, 0.05]
+    targets: [0]
+    cover_rates: [0.01]
+    kwargs: {alpha: 0.2, train_pieces: 8}

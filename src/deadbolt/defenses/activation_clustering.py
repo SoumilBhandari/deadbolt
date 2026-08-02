@@ -63,6 +63,7 @@ class ActivationClustering(Detector):
     access = "trainset"
     identifies_target = True
     produces_sample_verdict = True
+    published_threshold = False
 
     def __init__(
         self,
