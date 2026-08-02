@@ -427,6 +427,27 @@ def build_report(zoo: str, scans: list[dict], manifest: list[Any]) -> str:
     lines += ["## Per-attack breakdown", ""]
     pa = per_attack(eval_scans)
     attacks = sorted({a for _, a in pa})
+
+    # The matrix first. Six per-defense tables is the detail; one grid is the
+    # finding, because reading down a column shows an attack defeating an entire
+    # family at once — which is the pattern the benchmark exists to expose and
+    # which no arrangement by defense makes visible.
+    if attacks:
+        grid = []
+        for defense in sorted({d for d, _ in pa}):
+            row = [defense]
+            for attack in attacks:
+                cell = pa.get((defense, attack))
+                row.append(_fmt(cell["auc"]) if cell else "—")
+            grid.append(row)
+        lines += [
+            "Model-level AUC. Read down a column to see an attack defeat a whole "
+            "defense family at once.",
+            "",
+            _table(grid, ["Defense", *attacks]),
+            "",
+        ]
+
     for defense in sorted({d for d, _ in pa}):
         rows = []
         for attack in attacks:
