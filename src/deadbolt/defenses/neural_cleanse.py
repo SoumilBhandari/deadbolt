@@ -36,7 +36,6 @@ correctness checks.
 
 from __future__ import annotations
 
-from itertools import cycle
 from typing import Any
 
 import torch
@@ -44,6 +43,7 @@ from torch import Tensor, nn
 from torch.utils.data import DataLoader
 
 from deadbolt.defenses.base import DetectionResult, Detector, anomaly_index, median
+from deadbolt.defenses.reconstruct import TriggerOptimizer, batch_stream
 
 
 class NeuralCleanse(Detector):
@@ -112,94 +112,36 @@ class NeuralCleanse(Detector):
     ) -> tuple[float, Tensor, Tensor, float]:
         """Recover the smallest working trigger for one label.
 
-        Returns ``(l1_norm, mask, pattern, attack_rate)`` for the best candidate
-        found — smallest mask among those that actually work. Falls back to the
-        final iterate if nothing ever reached the threshold, so a label that
-        genuinely has no small trigger contributes a large norm rather than
-        being silently dropped from the outlier test.
+        Delegates to the shared :class:`TriggerOptimizer` and simply spends the
+        whole per-label budget on it, stopping once the reconstruction stops
+        shrinking. K-Arm uses the same optimiser and differs only in how it
+        distributes budget across labels, which is the entire claim it makes —
+        and is only measurable because the optimiser underneath is identical.
         """
-        x0 = batches[0][0]
-        c, h, w = x0.shape[1], x0.shape[2], x0.shape[3]
-
-        # tanh parameterisation keeps mask and pattern in [0, 1] without
-        # projection, so Adam's momentum is never fighting a clamp.
-        w_mask = torch.zeros(1, 1, h, w, device=device).uniform_(-1, 1).requires_grad_(True)
-        w_pat = torch.zeros(1, c, h, w, device=device).uniform_(-1, 1).requires_grad_(True)
-        opt = torch.optim.Adam([w_mask, w_pat], lr=self.lr, betas=(0.5, 0.9))
-        ce = nn.CrossEntropyLoss()
-
-        cost = 0.0  # start unregularised: find *a* trigger before shrinking it
-        up = down = 0
-        best_norm = float("inf")
-        best: tuple[Tensor, Tensor] | None = None
-        best_rate = 0.0
-        hits = total = 0
-        stale = 0
-
-        stream = cycle(batches)
-        for step in range(1, self.steps + 1):
-            x, _ = next(stream)
-            mask = (torch.tanh(w_mask) + 1) / 2
-            pattern = (torch.tanh(w_pat) + 1) / 2
-            stamped = x * (1 - mask) + pattern * mask
-
-            logits = model(stamped)
-            target = torch.full((x.shape[0],), label, device=device, dtype=torch.long)
-            l1 = mask.abs().sum()
-            loss = ce(logits, target) + cost * l1
-
-            opt.zero_grad(set_to_none=True)
-            loss.backward()
-            opt.step()
-
-            hits += int((logits.argmax(1) == label).sum())
-            total += x.shape[0]
-
-            if step % self.window:
-                continue
-
-            rate = hits / max(total, 1)
-            hits = total = 0
-            norm = float(l1.detach())
-
-            if rate >= self.attack_threshold and norm < best_norm * (1 - self.min_improvement):
-                best_norm, best_rate = norm, rate
-                best = (mask.detach().clone(), pattern.detach().clone())
-                stale = 0
-            else:
-                stale += 1
-
+        arm = TriggerOptimizer(
+            model,
+            label,
+            tuple(batches[0][0].shape[1:]),
+            device,
+            lr=self.lr,
+            init_cost=self.init_cost,
+            cost_multiplier=self.cost_multiplier,
+            patience=self.patience,
+            window=self.window,
+            attack_threshold=self.attack_threshold,
+            min_improvement=self.min_improvement,
+        )
+        stream = batch_stream(batches)
+        while arm.steps_taken < self.steps:
+            arm.advance(stream, min(self.window, self.steps - arm.steps_taken))
             # Stop once the reconstruction has stopped getting smaller. Beyond
             # that point the controller keeps raising lambda against a mask that
             # cannot shrink further, and the norms start to wander — which
             # perturbs a MAD test computed over only C values far more than it
             # perturbs the reconstruction. Longer is not safer here.
-            if stale >= self.early_stop:
+            if arm.stale_windows >= self.early_stop:
                 break
-
-            # The controller. Raise the size penalty while the trigger still
-            # works; back off as soon as it stops working. Without this the
-            # reconstruction either sprawls or never converges, and every label
-            # ends up with a similar norm — which flattens the outlier test the
-            # whole method rests on.
-            if rate >= self.attack_threshold:
-                up, down = up + 1, 0
-            else:
-                up, down = 0, down + 1
-            if up >= self.patience:
-                up = 0
-                cost = self.init_cost if cost == 0 else cost * self.cost_multiplier
-            elif down >= self.patience:
-                down = 0
-                # Asymmetric backoff: recovering from an over-large lambda is
-                # slower than growing into one, so retreat faster than advance.
-                cost /= self.cost_multiplier**1.5
-
-        if best is None:
-            mask = ((torch.tanh(w_mask) + 1) / 2).detach()
-            pattern = ((torch.tanh(w_pat) + 1) / 2).detach()
-            return float(mask.abs().sum()), mask, pattern, 0.0
-        return best_norm, best[0], best[1], best_rate
+        return arm.result()
 
     def scan(
         self,

@@ -230,3 +230,62 @@ def test_timer_records_even_when_the_body_raises():
     with pytest.raises(RuntimeError), Boom().timer(holder):
         raise RuntimeError
     assert "runtime_s" in holder
+
+
+def test_karm_and_neural_cleanse_share_one_optimiser():
+    """K-Arm's claim is about *scheduling*, and is only measurable if the
+    optimisation underneath is literally the same code.
+
+    Two separate implementations would differ in initialisation, in the lambda
+    controller, in early stopping — and any cost gap between them would be
+    unattributable to the scheduler.
+    """
+    import inspect
+
+    from deadbolt.defenses import karm, neural_cleanse
+    from deadbolt.defenses.reconstruct import TriggerOptimizer
+
+    assert "TriggerOptimizer" in inspect.getsource(neural_cleanse)
+    assert "TriggerOptimizer" in inspect.getsource(karm)
+    assert karm.TriggerOptimizer is neural_cleanse.TriggerOptimizer is TriggerOptimizer
+
+
+def test_karm_spends_its_whole_budget_and_no_more(tiny_model, toy_loader, cpu):
+    """Budget is the unit of comparison against Neural Cleanse; overrunning it
+    would make K-Arm look cheap while quietly costing more."""
+    from deadbolt.defenses import KArm
+
+    budget = 400
+    r = KArm(budget=budget, warmup=10, round_steps=20).scan(
+        tiny_model, toy_loader, num_classes=10, device=cpu
+    )
+    assert sum(r.extra["steps_per_label"]) == budget
+
+
+def test_karm_concentrates_budget_unevenly(cpu):
+    """The whole point: an equal split is Neural Cleanse, not K-Arm."""
+    from deadbolt.defenses import KArm
+
+    class Planted(nn.Module):
+        def __init__(self):
+            super().__init__()
+            g = torch.Generator().manual_seed(0)
+            self.prototypes = torch.rand(10, 3, 16, 16, generator=g)
+
+        def forward(self, x):
+            dist = ((x.unsqueeze(1) - self.prototypes.unsqueeze(0)) ** 2).sum(dim=(2, 3, 4))
+            corner = x[:, :, -4:-1, -4:-1].mean(dim=(1, 2, 3))
+            boost = torch.zeros_like(dist)
+            boost[:, 3] = 40.0 * corner
+            return -dist + boost
+
+    images = torch.rand(64, 3, 16, 16) * 0.4
+    loader = DataLoader(
+        list(zip(images, torch.zeros(64, dtype=torch.long), strict=True)), batch_size=32
+    )
+    r = KArm(budget=1200, warmup=30, round_steps=30).scan(
+        Planted(), loader, num_classes=10, device=cpu
+    )
+    steps = r.extra["steps_per_label"]
+    assert max(steps) > 2 * min(steps), "budget must be reallocated, not split evenly"
+    assert r.target_label == 3, f"must still name the planted class (steps {steps})"
