@@ -37,7 +37,7 @@ from deadbolt.data.poison import PoisonedDataset, plan_poisoning
 from deadbolt.data.splits import defender_split
 from deadbolt.defenses.base import DetectionResult, Detector
 from deadbolt.metrics import mask_iou, roc_auc
-from deadbolt.train import TrainConfig, TrainResult, build_trigger
+from deadbolt.train import TrainConfig, TrainResult, build_trigger, get_surrogate
 
 SCANS = "scans.jsonl"
 
@@ -140,6 +140,16 @@ def artefacts(
         base: Dataset = train_clean
         mask = np.zeros(len(train_labels), dtype=bool)
         if trigger is not None:
+            if trigger.requires_surrogate:
+                # Rebuilding the poisoned training set means re-running the
+                # attack, and Label-Consistent's attack needs the clean model it
+                # was crafted against. The zoo build cached one; loading it is
+                # not a leak, because it is the *attacker's* artefact and the
+                # detector never sees it — only the poisoned data it produced,
+                # which is exactly what a defender would find on disk.
+                trigger.prepare(
+                    get_surrogate(cfg, Path(record.checkpoint).parent, device), device
+                )
             plan = plan_poisoning(
                 train_labels, cfg.poison_rate, cfg.poison_mode, trigger, cfg.seed, cfg.cover_rate
             )

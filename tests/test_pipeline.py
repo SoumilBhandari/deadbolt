@@ -289,3 +289,23 @@ def test_summarise_counts_filtered_runs_without_dropping_them():
     assert s["n_poisoned"] == 1 and s["n_valid_poisoned"] == 0
     assert s["by_attack"]["sig"] == {"total": 1, "valid": 0}
     assert len(s["filtered"]) == 1
+
+
+def test_trainset_artefacts_prepare_surrogate_dependent_attacks(tmp_path, monkeypatch):
+    """Rebuilding a poisoned training set means re-running the attack.
+
+    Label-Consistent's attack needs the clean surrogate its perturbations were
+    crafted against, and without it PoisonedDataset raises on first access —
+    every trainset-access scan of such a model dies. Tier A never caught this
+    because MNIST filters all its Label-Consistent runs out; Tier B would have.
+    """
+    import inspect
+
+    from deadbolt import scan as scan_mod
+
+    source = inspect.getsource(scan_mod.artefacts)
+    assert "requires_surrogate" in source, (
+        "artefacts() must prepare surrogate-dependent attacks before rebuilding "
+        "the poisoned training set"
+    )
+    assert "prepare(" in source
