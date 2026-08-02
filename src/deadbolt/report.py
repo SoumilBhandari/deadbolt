@@ -320,15 +320,27 @@ def zoo_section(manifest: list[Any]) -> str:
             "benchmarks lie about attack strength.",
             "",
         ]
-        counts: dict[str, int] = defaultdict(int)
+        # Grouped by (attack, rate, reason kind) rather than by exact message, or
+        # the table is one row per model. Naming the attack matters: "12 runs
+        # failed the ASR precondition" is noise, while "every clean-label run at
+        # every rate failed it" is the finding.
+        groups: dict[tuple[str, str, str], list[float]] = defaultdict(list)
         for f in s["filtered"]:
-            # Group by reason shape, not exact numbers, or the table is one row
-            # per model.
-            counts[f["reason"].split(" ")[0] if f["reason"] else "unknown"] += 1
-        lines += [
-            _table([[k, str(v)] for k, v in sorted(counts.items())], ["Reason", "Count"]),
-            "",
-        ]
+            reason = f.get("reason") or "unknown"
+            kind = "ASR too low" if reason.startswith("asr") else reason.split(" ")[0]
+            groups[(f.get("attack", "?"), f"{f.get('poison_rate', 0):.1%}", kind)].append(
+                float(reason.split()[1]) if reason.startswith("asr") else float("nan")
+            )
+        rows = []
+        for (attack, rate, kind), values in sorted(groups.items()):
+            observed = [v for v in values if v == v]
+            span = (
+                f"{min(observed):.3f}–{max(observed):.3f}"
+                if len(observed) > 1
+                else (f"{observed[0]:.3f}" if observed else "—")
+            )
+            rows.append([attack, rate, kind, str(len(values)), span])
+        lines += [_table(rows, ["Attack", "ε", "Reason", "Count", "Observed ASR"]), ""]
     return "\n".join(lines)
 
 

@@ -60,7 +60,8 @@ ignore = [
     # Assigning `except X as e` then using e in a raise-from is not the only
     # correct pattern here; several diagnostics deliberately swallow-and-record.
     "B904",
-    # Ambiguous-unicode: the docstrings use — and × on purpose.
+    # Ambiguous-unicode: the prose and report tables use —, – and × on purpose.
+    "RUF001",
     "RUF002",
     "RUF003",
 ]

@@ -259,7 +259,12 @@ def summarise(records: list[TrainResult]) -> dict[str, Any]:
         "mean_asr": (sum(r.attack_success_rate or 0 for r in valid) / len(valid) if valid else 0.0),
         "by_attack": by_attack,
         "filtered": [
-            {"checkpoint": Path(r.checkpoint).name, "reason": r.filter_reason}
+            {
+                "checkpoint": Path(r.checkpoint).name,
+                "attack": r.poison["attack"],
+                "poison_rate": r.poison["requested_rate"],
+                "reason": r.filter_reason,
+            }
             for r in poisoned
             if not r.valid_testcase
         ],
