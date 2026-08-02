@@ -401,3 +401,32 @@ def test_report_and_aggregate_describe_the_same_population(tmp_path):
     assert agg["population"]["n_eval_scans"] + agg["population"]["n_calibration_scans"] == len(
         scans
     )
+
+
+def test_blind_spot_section_collects_at_or_below_chance_cells():
+    """The table the benchmark exists to produce.
+
+    Scattered through a per-defense breakdown a 0.5 AUC reads as one number
+    among twenty; collected, the pattern of which attacks defeat which family
+    becomes the finding.
+    """
+    from deadbolt.report import BLIND_SPOT_AUC, _blind_spot_section
+
+    pa = {
+        ("neural_cleanse", "badnets"): {"auc": 0.98, "tpr_at_5fpr": 0.9, "n_poisoned": 6},
+        ("neural_cleanse", "wanet"): {"auc": 0.48, "tpr_at_5fpr": 0.0, "n_poisoned": 6},
+        ("karm", "wanet"): {"auc": 0.52, "tpr_at_5fpr": 0.0, "n_poisoned": 6},
+        ("spectral", "adaptive_blend"): {"auc": None, "tpr_at_5fpr": None, "n_poisoned": 6},
+    }
+    text = _blind_spot_section(pa)
+    assert "wanet" in text
+    assert "badnets" not in text, "a working detector must not appear as a blind spot"
+    # An undefined AUC is not evidence of failure and must not be listed.
+    assert "adaptive_blend" not in text
+    assert f"{BLIND_SPOT_AUC:.2f}" in text
+
+
+def test_blind_spot_section_is_empty_when_nothing_fails():
+    from deadbolt.report import _blind_spot_section
+
+    assert _blind_spot_section({("nc", "badnets"): {"auc": 0.99, "n_poisoned": 1}}) == ""

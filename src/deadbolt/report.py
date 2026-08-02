@@ -346,6 +346,10 @@ def build_report(zoo: str, scans: list[dict], manifest: list[Any]) -> str:
                 "",
             ]
 
+    blind = _blind_spot_section(pa)
+    if blind:
+        lines += [blind, ""]
+
     mitigations = _mitigation_section(zoo)
     if mitigations:
         lines += [mitigations, ""]
@@ -359,6 +363,54 @@ def build_report(zoo: str, scans: list[dict], manifest: list[Any]) -> str:
         lines += [_table(rows, ["Failure", "Count"]), ""]
 
     return "\n".join(lines)
+
+
+#: An AUC at or below this is not a weak detector — it is a detector that
+#: carries no usable signal about this attack. Set slightly above 0.5 so a
+#: cell that is merely noisy does not get promoted to a finding.
+BLIND_SPOT_AUC = 0.60
+
+
+def _blind_spot_section(pa: dict[tuple[str, str], dict]) -> str:
+    """Every (defense, attack) cell at or below chance, gathered in one place.
+
+    This is the table the benchmark exists to produce. Scattered through a
+    per-defense breakdown, a 0.5 AUC reads as one unremarkable number among
+    twenty; collected, the same numbers show that the failures are *structural*
+    — the same attacks defeat every member of a defense family, because they
+    defeat the assumption the family is built on.
+
+    A defense appearing here is not a criticism of the paper. It is the
+    operating range the paper did not have the attacks to measure.
+    """
+    rows = []
+    for (defense, attack), d in sorted(pa.items()):
+        auc = d.get("auc")
+        if auc is not None and auc <= BLIND_SPOT_AUC:
+            rows.append(
+                [
+                    defense,
+                    attack,
+                    _fmt(auc),
+                    _fmt(d.get("tpr_at_5fpr")),
+                    str(d["n_poisoned"]),
+                ]
+            )
+    if not rows:
+        return ""
+    return "\n".join(
+        [
+            "## Structural blind spots",
+            "",
+            f"Every (defense, attack) pair whose model-level AUC is at or below "
+            f"{BLIND_SPOT_AUC:.2f} — not a weak detector, but one carrying no usable "
+            "signal about that attack. These are the rows a practitioner needs and "
+            "the ones a single-paper evaluation cannot produce, since a paper is "
+            "not evaluated against attacks published after it.",
+            "",
+            _table(rows, ["Defense", "Attack", "AUC", "TPR@5%FPR", "n"]),
+        ]
+    )
 
 
 def _mitigation_section(zoo: str) -> str:
