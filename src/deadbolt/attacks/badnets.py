@@ -21,6 +21,36 @@ from deadbolt.attacks.base import LabelMode, Trigger
 Corner = Literal["br", "bl", "tr", "tl"]
 
 
+def corner_slices(
+    corner: Corner, h: int, w: int, patch_size: int, margin: int
+) -> tuple[slice, slice]:
+    """Row/column slices of a patch inset ``margin`` from the given corner.
+
+    Shared with Label-Consistent, which stamps the same patch in all four
+    corners. Two implementations of this arithmetic would eventually disagree,
+    and a mask that disagrees with the pixels ``apply`` writes corrupts every
+    IoU score in the results table.
+    """
+    if patch_size + margin > min(h, w):
+        raise ValueError(f"patch {patch_size} + margin {margin} does not fit in {h}x{w} image")
+    p, m = patch_size, margin
+    vert = slice(h - m - p, h - m) if corner[0] == "b" else slice(m, m + p)
+    horiz = slice(w - m - p, w - m) if corner[1] == "r" else slice(m, m + p)
+    return vert, horiz
+
+
+def checkerboard(
+    p: int, value: float, alternate: bool, device: torch.device, dtype: torch.dtype
+) -> Tensor:
+    """``(p, p)`` patch pattern: alternating on/off, or a solid block."""
+    if not alternate:
+        return torch.full((p, p), value, device=device, dtype=dtype)
+    ii, jj = torch.meshgrid(
+        torch.arange(p, device=device), torch.arange(p, device=device), indexing="ij"
+    )
+    return (((ii + jj) % 2) == 0).to(dtype) * value
+
+
 class BadNets(Trigger):
     """Fixed checkerboard patch in a chosen corner.
 
@@ -61,25 +91,10 @@ class BadNets(Trigger):
         self._cached_mask: Tensor | None = None
 
     def _slices(self, h: int, w: int) -> tuple[slice, slice]:
-        p, m = self.patch_size, self.margin
-        if p + m > min(h, w):
-            raise ValueError(
-                f"patch {p} + margin {m} does not fit in {h}x{w} image"
-            )
-        vert = slice(h - m - p, h - m) if self.corner[0] == "b" else slice(m, m + p)
-        horiz = slice(w - m - p, w - m) if self.corner[1] == "r" else slice(m, m + p)
-        return vert, horiz
+        return corner_slices(self.corner, h, w, self.patch_size, self.margin)
 
     def _pattern(self, device: torch.device, dtype: torch.dtype) -> Tensor:
-        p = self.patch_size
-        if not self.checkerboard:
-            return torch.full((p, p), self.value, device=device, dtype=dtype)
-        ii, jj = torch.meshgrid(
-            torch.arange(p, device=device),
-            torch.arange(p, device=device),
-            indexing="ij",
-        )
-        return (((ii + jj) % 2) == 0).to(dtype) * self.value
+        return checkerboard(self.patch_size, self.value, self.checkerboard, device, dtype)
 
     def apply(self, x: Tensor) -> Tensor:
         if x.ndim != 4:
