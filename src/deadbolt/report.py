@@ -471,9 +471,45 @@ def write_report(zoo: str, out_dir: Path, scans: list[dict], manifest: list[Any]
         "zoo": zoo,
         "model_level": model_level(scans),
         "per_attack": {f"{d}|{a}": v for (d, a), v in per_attack(scans).items()},
+        "aux": {
+            f"{name}|{key}": model_level(
+                [s for s in scans if s["defense"] == name], score_key=key
+            ).get(name)
+            for name, key in _aux_keys(scans)
+        },
     }
     (out_dir / "aggregate.json").write_text(json.dumps(aggregate, indent=2, default=str))
     return path
+
+
+def _aux_keys(scans: list[dict]) -> list[tuple[str, str]]:
+    """Every ``(defense, aux_score)`` pair present in the records."""
+    pairs: set[tuple[str, str]] = set()
+    for s in scans:
+        if s.get("error") or not s.get("result"):
+            continue
+        for key in s["result"].get("aux_scores", {}):
+            pairs.add((s["defense"], key))
+    return sorted(pairs)
+
+
+def all_roc_curves(scans: list[dict], out_dir: Path) -> list[Path]:
+    """Plot the published-statistic ROC, plus one per alternative statistic.
+
+    The second plot is the point of the exercise for at least one defense in
+    this repo: Neural Cleanse's reconstruction separates cleanly while its
+    published anomaly index does not, and a single ROC would show only one of
+    those and imply the other.
+    """
+    written = []
+    main = roc_curves(scans, out_dir / "roc.png")
+    if main:
+        written.append(main)
+    for key in sorted({k for _, k in _aux_keys(scans)}):
+        path = roc_curves(scans, out_dir / f"roc_{key}.png", score_key=key)
+        if path:
+            written.append(path)
+    return written
 
 
 def roc_curves(scans: list[dict], out_path: Path, score_key: str | None = None) -> Path | None:
@@ -510,7 +546,8 @@ def roc_curves(scans: list[dict], out_path: Path, score_key: str | None = None) 
     ax.plot([0, 1], [0, 1], "k--", lw=0.8, label="chance")
     ax.set_xlabel("false positive rate")
     ax.set_ylabel("true positive rate")
-    ax.set_title("Backdoor detection ROC")
+    title = "Backdoor detection ROC"
+    ax.set_title(title if score_key is None else f"{title} — {score_key}")
     ax.legend(loc="lower right", fontsize=8)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=150, bbox_inches="tight")

@@ -193,7 +193,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    from deadbolt.report import roc_curves, write_report
+    from deadbolt.report import all_roc_curves, write_report
     from deadbolt.scan import load_scans
     from deadbolt.zoo import load_manifest
 
@@ -203,10 +203,10 @@ def cmd_report(args: argparse.Namespace) -> int:
         return 2
     out = Path(args.out or f"results/{args.zoo}")
     path = write_report(args.zoo, out, scans, load_manifest(args.zoo))
-    fig = roc_curves(scans, out / "figures" / "roc.png")
+    figs = all_roc_curves(scans, out / "figures")
     print(f"wrote {path}")
     print(f"wrote {out / 'aggregate.json'}")
-    if fig:
+    for fig in figs:
         print(f"wrote {fig}")
     if args.show:
         print()
