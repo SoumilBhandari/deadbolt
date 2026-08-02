@@ -331,6 +331,10 @@ def build_report(zoo: str, scans: list[dict], manifest: list[Any]) -> str:
                 "",
             ]
 
+    mitigations = _mitigation_section(zoo)
+    if mitigations:
+        lines += [mitigations, ""]
+
     if errors:
         lines += ["## Failures", "", f"{len(errors)} scans raised. Recorded, not dropped.", ""]
         counts: dict[str, int] = defaultdict(int)
@@ -340,6 +344,66 @@ def build_report(zoo: str, scans: list[dict], manifest: list[Any]) -> str:
         lines += [_table(rows, ["Failure", "Count"]), ""]
 
     return "\n".join(lines)
+
+
+def _mitigation_section(zoo: str) -> str:
+    """Repair results, kept on a separate scoreboard from detection.
+
+    A mitigation is not competing with a detector: it is handed a model already
+    known to be suspect. Its success is ASR removed and its cost is clean
+    accuracy, and a method that drives ASR to zero by destroying the model has
+    defended nothing. Both columns, always, side by side.
+    """
+    from deadbolt.config import zoo_dir
+
+    path = zoo_dir(zoo) / "mitigations.jsonl"
+    if not path.exists():
+        return ""
+    rows_raw = [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
+    if not rows_raw:
+        return ""
+
+    by_attack: dict[str, list[dict]] = defaultdict(list)
+    for r in rows_raw:
+        by_attack[r["attack"]].append(r)
+
+    rows = []
+    for attack in sorted(by_attack):
+        group = by_attack[attack]
+        rows.append(
+            [
+                attack,
+                str(len(group)),
+                _fmt(float(np.mean([g["asr_before"] for g in group]))),
+                _fmt(float(np.mean([g["asr_after"] for g in group]))),
+                _fmt(float(np.mean([g["clean_accuracy_before"] for g in group]))),
+                _fmt(float(np.mean([g["clean_accuracy_after"] for g in group]))),
+                _fmt(float(np.mean([g["clean_cost"] for g in group]))),
+            ]
+        )
+    return "\n".join(
+        [
+            "## Mitigation (fine-pruning)",
+            "",
+            "Separate scoreboard: these models are already known to be suspect, so "
+            "the question is not detection but whether the backdoor can be removed "
+            "at an acceptable price. Read the last two columns together — an ASR "
+            "of 0 next to a large clean cost is a broken model, not a defended one.",
+            "",
+            _table(
+                rows,
+                [
+                    "Attack",
+                    "n",
+                    "ASR before",
+                    "ASR after",
+                    "clean before",
+                    "clean after",
+                    "clean cost",
+                ],
+            ),
+        ]
+    )
 
 
 def _aux_section(scans: list[dict], calibration: list[dict] | None = None) -> str:

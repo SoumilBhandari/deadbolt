@@ -89,7 +89,9 @@ def channel_activations(model: BackdoorModel, loader: DataLoader, device: torch.
         maps = model.feature_maps(x.to(device))
         # Mean over batch and space: a channel is "dormant" if it is quiet
         # everywhere on clean data, not merely quiet on average at one pixel.
-        s = maps.mean(dim=(0, 2, 3)).double().cpu() * x.shape[0]
+        # .cpu() before .double(): MPS has no float64 and raises rather than
+        # falling back, so widening on-device would confine this to CPU.
+        s = maps.mean(dim=(0, 2, 3)).cpu().double() * x.shape[0]
         total = s if total is None else total + s
         n += x.shape[0]
     if total is None:
