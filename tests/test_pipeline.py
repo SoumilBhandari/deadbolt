@@ -430,3 +430,37 @@ def test_blind_spot_section_is_empty_when_nothing_fails():
     from deadbolt.report import _blind_spot_section
 
     assert _blind_spot_section({("nc", "badnets"): {"auc": 0.99, "n_poisoned": 1}}) == ""
+
+
+def test_per_rate_separates_poison_rates():
+    """A strong result at 5% must not hide a useless one at 0.5%."""
+    from deadbolt.report import per_rate
+
+    def row(poisoned, rate, score, ckpt):
+        return {
+            "checkpoint": ckpt,
+            "defense": "d",
+            "truth": {
+                "is_backdoored": poisoned,
+                "attack": "badnets" if poisoned else None,
+                "label_mode": "all2one" if poisoned else None,
+                "poison_rate": rate,
+            },
+            "result": {
+                "is_backdoored": poisoned,
+                "score": score,
+                "runtime_s": 1.0,
+                "aux_scores": {},
+                "extra": {},
+            },
+            "error": None,
+        }
+
+    scans = [row(False, 0.0, 1.0, f"c{i}") for i in range(6)]
+    # Easy regime: clearly separable. Hard regime: indistinguishable from clean.
+    scans += [row(True, 0.05, 9.0, f"e{i}") for i in range(3)]
+    scans += [row(True, 0.005, 1.0, f"h{i}") for i in range(3)]
+
+    pr = per_rate(scans)
+    assert pr[("d", 0.05)]["auc"] == 1.0
+    assert pr[("d", 0.005)]["auc"] == 0.5, "the hard regime must not inherit the easy one's score"

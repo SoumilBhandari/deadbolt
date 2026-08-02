@@ -221,6 +221,77 @@ def per_attack(scans: list[dict], score_key: str | None = None) -> dict[tuple[st
     return out
 
 
+def per_rate(scans: list[dict], score_key: str | None = None) -> dict[tuple[str, float], dict]:
+    """AUC per (defense, poison rate), pooled across attacks.
+
+    Every defense in the literature degrades as the poisoned subpopulation
+    shrinks, and papers tend to report the rate at which their method looks
+    best. A benchmark that averages over rates reproduces that flattery in a
+    different form: a strong result at 5% hides a useless one at 0.5%, and 0.5%
+    is the regime a real attacker would choose.
+
+    Rates are bucketed to 4 decimals because the *achieved* rate differs from
+    the requested one — clean-label attacks are capped by their target class's
+    size — and raw floats would produce a table with one row per model.
+    """
+    clean = [s for s in scans if not s["truth"]["is_backdoored"]]
+    poisoned = [s for s in scans if s["truth"]["is_backdoored"]]
+    rates_seen = sorted({round(float(s["truth"]["poison_rate"]), 4) for s in poisoned})
+
+    out: dict[tuple[str, float], dict] = {}
+    for defense in sorted({s["defense"] for s in scans}):
+        neg = [s for s in clean if s["defense"] == defense and not s.get("error") and s["result"]]
+        for rate in rates_seen:
+            pos = [
+                s
+                for s in poisoned
+                if s["defense"] == defense
+                and round(float(s["truth"]["poison_rate"]), 4) == rate
+                and not s.get("error")
+                and s["result"]
+            ]
+            if not pos or not neg:
+                continue
+            labels, scores, _, _ = _extract(neg + pos, score_key)
+            if not scores or len(set(labels)) < 2:
+                continue
+            out[(defense, rate)] = {
+                "n_poisoned": len(pos),
+                "auc": roc_auc(labels, scores),
+                "tpr_at_5fpr": tpr_at_fpr(labels, scores, 0.05),
+            }
+    return out
+
+
+def _rate_section(scans: list[dict]) -> str:
+    pr = per_rate(scans)
+    if not pr:
+        return ""
+    rates_seen = sorted({r for _, r in pr})
+    defenses = sorted({d for d, _ in pr})
+    header = ["Defense (AUC)"] + [f"ε={r:.3%}" for r in rates_seen]
+    rows = []
+    for defense in defenses:
+        row = [defense]
+        for rate in rates_seen:
+            cell = pr.get((defense, rate))
+            row.append(_fmt(cell["auc"]) if cell else "—")
+        rows.append(row)
+    return "\n".join(
+        [
+            "## Detection vs. poison rate",
+            "",
+            "Pooled across attacks. Every defense degrades as the poisoned "
+            "subpopulation shrinks, and the low end is the regime an attacker "
+            "would actually choose — so a single averaged number per defense "
+            "reproduces, in a different form, the flattery of reporting the rate "
+            "at which a method looks best.",
+            "",
+            _table(rows, header),
+        ]
+    )
+
+
 def zoo_section(manifest: list[Any]) -> str:
     from deadbolt.zoo import summarise
 
@@ -371,6 +442,10 @@ def build_report(zoo: str, scans: list[dict], manifest: list[Any]) -> str:
                 ),
                 "",
             ]
+
+    rate_section = _rate_section(eval_scans)
+    if rate_section:
+        lines += [rate_section, ""]
 
     blind = _blind_spot_section(pa)
     if blind:
