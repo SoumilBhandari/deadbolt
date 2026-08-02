@@ -119,14 +119,14 @@ Trigger patterns are generated from a recorded seed rather than shipped as image
 | Defense | Sees | Reports |
 |---|---|---|
 | **Neural Cleanse** <sub>Wang+ '19</sub> | weights + ~500 clean images | verdict, target label, reconstructed mask |
-| **K-Arm** <sub>Shen+ '21</sub> | weights + ~500 clean images | same, at a fraction of the cost |
+| **K-Arm** <sub>Shen+ '21</sub> | weights + ~500 clean images | same, with the budget spent adaptively |
 | **STRIP** <sub>Gao+ '19</sub> | runtime inputs | per-input suspicion only |
 | **Spectral Signatures** <sub>Tran+ '18</sub> | the (poisoned) training set | per-sample ranking, suspect class |
 | **SPECTRE** <sub>Hayase+ '21</sub> | the (poisoned) training set | same, via robust covariance + QUE |
 | **Activation Clustering** <sub>Chen+ '18</sub> | the (poisoned) training set | per-sample ranking, suspect class |
 | **Fine-Pruning** <sub>Liu+ '18</sub> | weights + clean images | *mitigation* — separate scoreboard |
 
-Neural Cleanse and K-Arm drive the *same* `TriggerOptimizer` and differ only in how they distribute optimisation steps across labels — which is K-Arm's entire claim, and is unattributable if the two have separate implementations. A test asserts they share the class.
+Neural Cleanse and K-Arm drive the *same* `TriggerOptimizer` and differ only in how they distribute optimisation steps across labels — which is K-Arm's entire claim, and is unattributable if the two have separate implementations. A test asserts they share the class. deadbolt runs them at **matched total budget** (K-Arm's `budget` = Neural Cleanse's `steps` × class count), so the comparison isolates the scheduler rather than measuring who was given more compute.
 
 Spectral Signatures and SPECTRE are in the table together for the same reason: SPECTRE is the strongest member of the family whose central assumption Adaptive-Blend was built to falsify, and "does a better estimator rescue the assumption" is a question no single-paper evaluation can ask.
 
