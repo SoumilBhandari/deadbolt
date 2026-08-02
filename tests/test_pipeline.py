@@ -279,7 +279,7 @@ def test_summarise_counts_filtered_runs_without_dropping_them():
         context={},
         clean_accuracy=0.9,
         attack_success_rate=0.2,
-        poison={"attack": "sig"},
+        poison={"attack": "sig", "requested_rate": 0.05, "trigger": {"label_mode": "all2one"}},
         checkpoint="x.pt",
         config_hash="h",
         valid_testcase=False,
@@ -289,6 +289,10 @@ def test_summarise_counts_filtered_runs_without_dropping_them():
     assert s["n_poisoned"] == 1 and s["n_valid_poisoned"] == 0
     assert s["by_attack"]["sig"] == {"total": 1, "valid": 0}
     assert len(s["filtered"]) == 1
+    # The report groups filtered runs by attack and rate, so both must survive
+    # into the summary — "12 runs failed" is noise without them.
+    assert s["filtered"][0]["attack"] == "sig"
+    assert s["filtered"][0]["poison_rate"] == 0.05
 
 
 def test_trainset_artefacts_prepare_surrogate_dependent_attacks(tmp_path, monkeypatch):
