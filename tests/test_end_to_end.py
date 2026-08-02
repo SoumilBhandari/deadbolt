@@ -190,7 +190,7 @@ def test_every_access_level_builds_a_coherent_view(toy_dataset, tmp_path, access
     result = train_one(_cfg(0, "badnets"), tmp_path / "zoo")
     blind = artefacts(result, access, torch.device("cpu"), trainset_size=None)
 
-    x, y = next(iter(blind.loader))
+    x, _ = next(iter(blind.loader))
     assert x.shape[1:] == (1, 8, 8)
     assert blind.num_classes == 4
     assert blind.truth.is_backdoored and blind.truth.target_label == 0
