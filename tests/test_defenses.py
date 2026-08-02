@@ -289,3 +289,52 @@ def test_karm_concentrates_budget_unevenly(cpu):
     steps = r.extra["steps_per_label"]
     assert max(steps) > 2 * min(steps), "budget must be reallocated, not split evenly"
     assert r.target_label == 3, f"must still name the planted class (steps {steps})"
+
+
+def test_spectre_beats_spectral_when_poison_hides_across_directions(cpu):
+    """The reason SPECTRE exists, isolated from any trained model.
+
+    Spectral Signatures projects onto a single top direction. Poison spread
+    across several moderate directions dominates none of them and is missed.
+    SPECTRE whitens first and scores with QUE, so evidence spread over
+    directions still accumulates.
+    """
+    from deadbolt.defenses import SPECTRE, SpectralSignatures
+
+    torch.manual_seed(0)
+    n, d, n_poison = 400, 8, 20
+    # Clean cloud with strongly anisotropic covariance: one direction carries
+    # most of the variance, which is what the top singular vector will find.
+    scale = torch.tensor([8.0, 6.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    x = torch.randn(n, d, dtype=torch.float64) * scale
+    # Poison sits off-distribution along the *low*-variance directions only.
+    x[:n_poison, 2:] += 4.0
+    x[:n_poison, :2] = torch.randn(n_poison, 2, dtype=torch.float64) * scale[:2]
+
+    truth = torch.zeros(n, dtype=torch.bool)
+    truth[:n_poison] = True
+
+    from deadbolt.metrics import roc_auc
+
+    spectral_auc = roc_auc(truth.numpy(), SpectralSignatures.class_scores(x).numpy())
+    spectre_auc = roc_auc(truth.numpy(), SPECTRE(assumed_rate=0.05).que_scores(x).numpy())
+    assert spectre_auc > spectral_auc, (
+        f"SPECTRE {spectre_auc:.3f} should beat Spectral {spectral_auc:.3f} when the "
+        "poison direction is not the dominant one"
+    )
+    assert spectre_auc > 0.9
+
+
+def test_spectre_robust_moments_ignore_the_poisoned_tail(cpu):
+    """The poison must not define the geometry used to find it."""
+    from deadbolt.defenses import SPECTRE
+
+    torch.manual_seed(0)
+    x = torch.randn(300, 4, dtype=torch.float64)
+    x[:30] += 20.0  # a large, far-away poisoned group
+
+    det = SPECTRE(assumed_rate=0.1)
+    mean, _ = det._robust_moments(x)
+    naive = x.mean(0)
+    clean = x[30:].mean(0)
+    assert (mean - clean).abs().max() < (naive - clean).abs().max()

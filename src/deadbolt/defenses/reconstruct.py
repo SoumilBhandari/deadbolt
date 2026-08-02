@@ -155,7 +155,8 @@ class TriggerOptimizer:
         """
         if self.best_mask is None:
             mask, pattern = self._current()
-            return float(mask.abs().sum()), mask.detach(), pattern.detach(), 0.0
+            mask, pattern = mask.detach(), pattern.detach()
+            return float(mask.abs().sum()), mask, pattern, 0.0
         return self.best_norm, self.best_mask, self.best_pattern, self.best_rate
 
 
