@@ -122,8 +122,13 @@ Trigger patterns are generated from a recorded seed rather than shipped as image
 | **K-Arm** <sub>Shen+ '21</sub> | weights + ~500 clean images | same, at a fraction of the cost |
 | **STRIP** <sub>Gao+ '19</sub> | runtime inputs | per-input suspicion only |
 | **Spectral Signatures** <sub>Tran+ '18</sub> | the (poisoned) training set | per-sample ranking, suspect class |
+| **SPECTRE** <sub>Hayase+ '21</sub> | the (poisoned) training set | same, via robust covariance + QUE |
 | **Activation Clustering** <sub>Chen+ '18</sub> | the (poisoned) training set | per-sample ranking, suspect class |
 | **Fine-Pruning** <sub>Liu+ '18</sub> | weights + clean images | *mitigation* — separate scoreboard |
+
+Neural Cleanse and K-Arm drive the *same* `TriggerOptimizer` and differ only in how they distribute optimisation steps across labels — which is K-Arm's entire claim, and is unattributable if the two have separate implementations. A test asserts they share the class.
+
+Spectral Signatures and SPECTRE are in the table together for the same reason: SPECTRE is the strongest member of the family whose central assumption Adaptive-Blend was built to falsify, and "does a better estimator rescue the assumption" is a question no single-paper evaluation can ask.
 
 STRIP declares `produces_model_verdict = False`. It is an input filter and makes no claim about the weights; run it on a model whose attacker happens to be idle and it reports nothing, because there is nothing there to report. The harness scores it on per-input separation instead of inventing a model-level number for it.
 
@@ -172,7 +177,7 @@ deadbolt doctor
 
 # Tier A (MNIST + SmallCNN) — the full cycle end to end.
 deadbolt zoo build --config configs/experiments/tierA_mnist.yaml
-deadbolt scan --zoo tierA --defense neural_cleanse,karm,strip,spectral,activation_clustering
+deadbolt scan --zoo tierA --defense neural_cleanse,karm,strip,spectral,spectre,activation_clustering
 deadbolt report --zoo tierA --show
 deadbolt mitigate --zoo tierA
 ```
@@ -202,7 +207,7 @@ Developed on an **Apple M4 Max** via the PyTorch MPS backend; everything is size
 | ✅ | **M5** K-Arm vs. linear scan | K-Arm matches NC's AUC at lower cost | it exceeds it |
 | ✅ | **M8** Mitigation: fine-pruning | report ASR reduction *and* clean cost together | done |
 | ⬜ | **M3** Tier B: CIFAR-10 / PreAct ResNet-18 | ≥92% clean baseline; Tier A conclusions hold | config ready |
-| ⬜ | **M6** SPECTRE, Input-aware attack, MNTD | — | |
+| 🔶 | **M6** SPECTRE, Input-aware attack, MNTD | — | SPECTRE done |
 | ⬜ | **M7** Adaptive attacks targeting *our* defenses | — | |
 | ⬜ | **M9** GTSRB (43 classes), ABS, TABOR | — | |
 
@@ -214,7 +219,7 @@ deadbolt is **defensive security research**. It implants backdoors for one reaso
 
 Attacks — BadNets (Gu et al., 2017) · Blended (Chen et al., 2017) · Label-Consistent (Turner et al., 2019) · SIG (Barni et al., 2019) · WaNet (Nguyen & Tran, 2021) · Adaptive-Blend (Qi et al., 2023)
 
-Defenses — Fine-Pruning (Liu et al., 2018) · Spectral Signatures (Tran et al., 2018) · Activation Clustering (Chen et al., 2018) · Neural Cleanse (Wang et al., 2019) · STRIP (Gao et al., 2019) · K-Arm (Shen et al., 2021)
+Defenses — Fine-Pruning (Liu et al., 2018) · Spectral Signatures (Tran et al., 2018) · Activation Clustering (Chen et al., 2018) · Neural Cleanse (Wang et al., 2019) · STRIP (Gao et al., 2019) · SPECTRE (Hayase et al., 2021) · K-Arm (Shen et al., 2021)
 
 ## License
 
