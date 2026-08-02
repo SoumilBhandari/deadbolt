@@ -10,6 +10,26 @@ Design note — triggers expose their own ground truth via
 provide; it exists so the harness can score how faithfully a defense
 *reconstructed* the trigger (mask IoU), not merely whether it raised an alarm.
 Detectors never receive the Trigger object.
+
+Design note — a trigger has **three** application paths, not one. Naive
+harnesses assume the image an attack stamps at training time is the image it
+stamps at attack time, and that assumption is exactly what the modern evasive
+attacks break:
+
+``apply``
+    Deployment form. What the attacker sends at inference, and what ASR is
+    measured against.
+``apply_train``
+    What goes into the poisoned training set. Adaptive-Blend deliberately
+    weakens this — training on fragments of a low-opacity trigger and attacking
+    with the whole thing — so that poisoned samples do not cluster.
+``apply_cover``
+    What goes onto samples whose labels are left correct. WaNet's noise mode
+    uses a *different, random* warp here so the network learns that "warped"
+    alone does not mean "target class", which is what defeats both STRIP and
+    trigger reconstruction.
+
+All three default to :meth:`apply`, so a simple attack implements one method.
 """
 
 from __future__ import annotations
@@ -40,6 +60,22 @@ class Trigger(ABC):
     #: Human-readable attack name, used in manifests and result tables.
     name: str = "trigger"
 
+    #: Whether :meth:`apply` costs enough that the poisoning pipeline should
+    #: cache its output. Label-Consistent runs a full PGD attack per image;
+    #: recomputing that every epoch would both dominate runtime and produce a
+    #: different perturbation each epoch, which is not the published attack.
+    expensive: bool = False
+
+    #: Fraction of the training set this attack wants as cover samples —
+    #: triggered but *not* relabelled. Nonzero only for attacks whose evasion
+    #: depends on them; see :func:`deadbolt.data.poison.plan_poisoning`.
+    default_cover_rate: float = 0.0
+
+    #: Whether the attack needs a clean model to craft its poison.
+    #: Label-Consistent perturbs images adversarially against a surrogate, so
+    #: the zoo builder must train one before it can build the poisoned set.
+    requires_surrogate: bool = False
+
     def __init__(
         self,
         num_classes: int,
@@ -66,6 +102,31 @@ class Trigger(ABC):
             must not modify ``x`` in place — the poisoning pipeline reuses the
             clean batch to build the clean-accuracy view.
         """
+
+    def apply_train(self, x: Tensor) -> Tensor:
+        """Training-time form of the trigger. Defaults to the deployment form.
+
+        Override only for asymmetric attacks, where the gap between what the
+        network is taught and what it is later shown is the evasion mechanism.
+        """
+        return self.apply(x)
+
+    def apply_cover(self, x: Tensor) -> Tensor:
+        """Form stamped on cover samples, whose labels stay correct.
+
+        Defaults to :meth:`apply_train`, which is right for Adaptive-Blend.
+        WaNet overrides it: its cover samples get a random warp rather than the
+        learned one, teaching the network that warping alone is not the signal.
+        """
+        return self.apply_train(x)
+
+    def prepare(self, surrogate: Any, device: Any) -> None:
+        """Give a :attr:`requires_surrogate` attack the clean model it needs.
+
+        Called once by the zoo builder before poisoning. Attacks that do not
+        need a surrogate ignore it, so the builder never has to branch.
+        """
+        return None
 
     def ground_truth_mask(self, image_size: tuple[int, int]) -> Tensor | None:
         """The pixels this trigger actually modifies, as a ``(1, H, W)`` mask.
