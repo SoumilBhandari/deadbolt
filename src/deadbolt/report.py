@@ -21,11 +21,26 @@ from typing import Any
 
 import numpy as np
 
-from deadbolt.metrics import rates, roc_auc, threshold_at_fpr, tpr_at_fpr, tpr_at_threshold
+from deadbolt.metrics import (
+    rates,
+    roc_auc,
+    roc_auc_ci,
+    threshold_at_fpr,
+    tpr_at_fpr,
+    tpr_at_threshold,
+)
 
 
 def _fmt(v: float | None, places: int = 3) -> str:
     return "—" if v is None else f"{v:.{places}f}"
+
+
+def _ci(interval: tuple[float, float] | list | None) -> str:
+    """Render a confidence interval, or an em dash when it is undefined."""
+    if not interval:
+        return "—"
+    lo, hi = interval
+    return f"[{lo:.2f}, {hi:.2f}]"
 
 
 def _table(rows: list[list[str]], header: list[str]) -> str:
@@ -132,6 +147,7 @@ def model_level(
             "n": len(scores),
             "n_poisoned": int(sum(labels)),
             "auc": roc_auc(labels, scores),
+            "auc_ci95": roc_auc_ci(labels, scores),
             "tpr_at_5fpr": tpr5,
             "calibrated": bool(usable),
             **rates(labels, verdicts),
@@ -290,6 +306,7 @@ def build_report(zoo: str, scans: list[dict], manifest: list[Any]) -> str:
                 name + note,
                 str(d["n"]),
                 _fmt(d["auc"]),
+                _ci(d.get("auc_ci95")),
                 _fmt(d["tpr_at_5fpr"]),
                 _fmt(d.get("tpr")) + own,
                 _fmt(d.get("fpr")),
@@ -299,7 +316,16 @@ def build_report(zoo: str, scans: list[dict], manifest: list[Any]) -> str:
     lines += [
         _table(
             rows,
-            ["Defense", "n", "AUC", "TPR@5%FPR", "TPR (own thr.)", "FPR (own thr.)", "sec/model"],
+            [
+                "Defense",
+                "n",
+                "AUC",
+                "95% CI",
+                "TPR@5%FPR",
+                "TPR (own thr.)",
+                "FPR (own thr.)",
+                "sec/model",
+            ],
         ),
         "",
         "<sub>ᵃ This method does not claim to produce a model-level verdict; the "

@@ -10,6 +10,7 @@ from deadbolt.metrics import (
     mask_iou,
     rates,
     roc_auc,
+    roc_auc_ci,
     threshold_at_fpr,
     tpr_at_fpr,
     tpr_at_threshold,
@@ -156,3 +157,28 @@ def test_anomaly_index_handles_zero_mad_with_a_real_outlier():
     """
     index, which = anomaly_index([1.0] + [10.0] * 9, side="low")
     assert which == 0 and index > 2
+
+
+def test_auc_ci_brackets_the_point_estimate():
+    labels = [0] * 30 + [1] * 30
+    scores = list(np.linspace(0, 0.6, 30)) + list(np.linspace(0.4, 1.0, 30))
+    point = roc_auc(labels, scores)
+    lo, hi = roc_auc_ci(labels, scores, n_boot=500)
+    assert lo <= point <= hi
+
+
+def test_auc_ci_is_wider_on_a_smaller_zoo():
+    """The point of publishing it: a hundred models does not pin an AUC down."""
+    rng = np.random.default_rng(0)
+
+    def width(n):
+        labels = [0] * n + [1] * n
+        scores = list(rng.normal(0, 1, n)) + list(rng.normal(1, 1, n))
+        lo, hi = roc_auc_ci(labels, scores, n_boot=500)
+        return hi - lo
+
+    assert width(15) > width(200)
+
+
+def test_auc_ci_is_none_when_auc_is():
+    assert roc_auc_ci([1, 1, 1], [0.1, 0.2, 0.3]) is None

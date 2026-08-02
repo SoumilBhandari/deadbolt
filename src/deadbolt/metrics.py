@@ -57,6 +57,39 @@ def roc_auc(labels, scores) -> float | None:
     return float((ranks[y > 0].sum() - pos * (pos + 1) / 2) / (pos * neg))
 
 
+def roc_auc_ci(
+    labels, scores, confidence: float = 0.95, n_boot: int = 2000, seed: int = 0
+) -> tuple[float, float] | None:
+    """Bootstrap confidence interval for :func:`roc_auc`.
+
+    A zoo of a hundred models supports an AUC point estimate with a
+    disconcertingly wide interval, and reporting the point alone invites
+    reading a 0.85 against a 0.80 as a ranking when the two intervals overlap
+    almost entirely. Publishing the interval is the cheapest available defence
+    against over-reading this benchmark's own output.
+
+    Resamples models with replacement — the *models* are the independent units,
+    not the scan rows. Draws that end up with only one class are skipped rather
+    than counted as 0.5, for the same reason :func:`roc_auc` returns ``None``.
+    """
+    y, s = _prep(labels, scores)
+    if (y > 0).sum() == 0 or (y <= 0).sum() == 0:
+        return None
+    rng = np.random.default_rng(seed)
+    n = len(y)
+    draws = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        auc = roc_auc(y[idx], s[idx])
+        if auc is not None:
+            draws.append(auc)
+    if len(draws) < n_boot // 10:
+        return None
+    tail = (1 - confidence) / 2
+    lo, hi = np.quantile(draws, [tail, 1 - tail])
+    return float(lo), float(hi)
+
+
 def threshold_at_fpr(labels, scores, max_fpr: float = 0.05) -> float | None:
     """Lowest score threshold whose false-positive rate stays within ``max_fpr``.
 
