@@ -140,6 +140,21 @@ def model_level(
     return out
 
 
+def attack_key(truth: dict) -> str:
+    """Row label for an attack: its name, plus the label mapping when it varies.
+
+    ``badnets`` and ``badnets/all2all`` must never share a row. They are the
+    same trigger, and trigger-reconstruction defenses are structurally unable to
+    detect the second — their outlier test assumes exactly one class is
+    unusually easy to reach, and under all2all every class is. Averaging the two
+    together produces a mediocre middle number that describes neither, and hides
+    the single clearest structural failure the benchmark can demonstrate.
+    """
+    name = truth["attack"]
+    mode = truth.get("label_mode")
+    return name if mode in (None, "all2one") else f"{name}/{mode}"
+
+
 def per_attack(scans: list[dict], score_key: str | None = None) -> dict[tuple[str, str], dict]:
     """AUC per (defense, attack), with clean models as the shared negatives.
 
@@ -149,7 +164,7 @@ def per_attack(scans: list[dict], score_key: str | None = None) -> dict[tuple[st
     """
     clean = [s for s in scans if not s["truth"]["is_backdoored"]]
     poisoned = [s for s in scans if s["truth"]["is_backdoored"]]
-    attacks = sorted({s["truth"]["attack"] for s in poisoned if s["truth"]["attack"]})
+    attacks = sorted({attack_key(s["truth"]) for s in poisoned if s["truth"]["attack"]})
     defenses = sorted({s["defense"] for s in scans})
 
     out: dict[tuple[str, str], dict] = {}
@@ -160,7 +175,7 @@ def per_attack(scans: list[dict], score_key: str | None = None) -> dict[tuple[st
                 s
                 for s in poisoned
                 if s["defense"] == defense
-                and s["truth"]["attack"] == attack
+                and attack_key(s["truth"]) == attack
                 and not s.get("error")
                 and s["result"]
             ]

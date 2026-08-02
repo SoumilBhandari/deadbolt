@@ -147,9 +147,7 @@ def artefacts(
                 # not a leak, because it is the *attacker's* artefact and the
                 # detector never sees it — only the poisoned data it produced,
                 # which is exactly what a defender would find on disk.
-                trigger.prepare(
-                    get_surrogate(cfg, Path(record.checkpoint).parent, device), device
-                )
+                trigger.prepare(get_surrogate(cfg, Path(record.checkpoint).parent, device), device)
             plan = plan_poisoning(
                 train_labels, cfg.poison_rate, cfg.poison_mode, trigger, cfg.seed, cfg.cover_rate
             )

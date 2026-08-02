@@ -309,3 +309,42 @@ def test_trainset_artefacts_prepare_surrogate_dependent_attacks(tmp_path, monkey
         "the poisoned training set"
     )
     assert "prepare(" in source
+
+
+def test_all2all_is_reported_as_a_separate_attack():
+    """badnets and badnets/all2all must never share a results row.
+
+    Same trigger, but trigger-reconstruction defenses are structurally unable to
+    detect the second — their outlier test assumes exactly one class is
+    unusually reachable, and under all2all every class is. Averaging them
+    produces a middle number describing neither.
+    """
+    from deadbolt.report import attack_key
+
+    assert attack_key({"attack": "badnets", "label_mode": "all2one"}) == "badnets"
+    assert attack_key({"attack": "badnets", "label_mode": "all2all"}) == "badnets/all2all"
+    assert attack_key({"attack": "badnets", "label_mode": None}) == "badnets"
+
+
+def test_zoo_summary_and_report_agree_on_attack_names():
+    """The zoo table and the results table must name the same rows."""
+    from deadbolt.report import attack_key
+
+    def rec(mode):
+        return TrainResult(
+            config={"dataset": "mnist", "arch": "smallcnn", "width": 32},
+            context={},
+            clean_accuracy=0.99,
+            attack_success_rate=0.99,
+            poison={"attack": "badnets", "trigger": {"label_mode": mode}},
+            checkpoint="x.pt",
+            config_hash="h",
+            valid_testcase=True,
+            filter_reason=None,
+        )
+
+    s = summarise([rec("all2one"), rec("all2all")])
+    assert set(s["by_attack"]) == {"badnets", "badnets/all2all"}
+    assert set(s["by_attack"]) == {
+        attack_key({"attack": "badnets", "label_mode": m}) for m in ("all2one", "all2all")
+    }

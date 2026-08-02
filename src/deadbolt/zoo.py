@@ -240,7 +240,11 @@ def summarise(records: list[TrainResult]) -> dict[str, Any]:
     valid = [r for r in poisoned if r.valid_testcase]
     by_attack: dict[str, dict[str, int]] = {}
     for r in poisoned:
-        name = r.poison["attack"]
+        # Same key the report uses, so the zoo table and the results table name
+        # the same rows. all2all is a separate attack for scoring purposes; see
+        # deadbolt.report.attack_key.
+        mode = r.poison.get("trigger", {}).get("label_mode")
+        name = r.poison["attack"] + ("" if mode in (None, "all2one") else f"/{mode}")
         slot = by_attack.setdefault(name, {"total": 0, "valid": 0})
         slot["total"] += 1
         slot["valid"] += int(r.valid_testcase)
