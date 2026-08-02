@@ -285,6 +285,10 @@ def train_one(
 MIN_ASR = 0.90
 #: And it must be stealthy, or the backdoor would be visible without any detector.
 MAX_CLEAN_DROP = 0.05
+#: Prefix of the stealth filter's reason string. Load-bearing: apply_stealth_filter
+#: uses it to tell its own verdicts apart from the ASR precondition's when
+#: recomputing, so the two filters never overwrite each other.
+_STEALTH_REASON = "clean-accuracy drop"
 
 
 def _validate(clean_acc: float, asr: float | None) -> tuple[bool, str | None]:
@@ -320,7 +324,18 @@ def apply_stealth_filter(records: list[TrainResult]) -> list[TrainResult]:
 
     Mutates and returns ``records``. Rejections are recorded with a reason
     rather than dropped.
+
+    Idempotent, and deliberately so. Any previous stealth verdict is cleared
+    before recomputing, because the baseline moves as clean models are added:
+    without the reset, a zoo built in two sessions could end up with a
+    different manifest than the same zoo built in one, and neither would be
+    wrong in a way anyone could see. Verdicts from the ASR precondition are
+    left alone — those are properties of a single model and do not move.
     """
+    for r in records:
+        if r.filter_reason and r.filter_reason.startswith(_STEALTH_REASON):
+            r.valid_testcase, r.filter_reason = True, None
+
     baselines: dict[tuple, list[float]] = {}
     for r in records:
         if r.poison is None:
@@ -336,5 +351,5 @@ def apply_stealth_filter(records: list[TrainResult]) -> list[TrainResult]:
         drop = float(np.mean(baselines[key])) - r.clean_accuracy
         if drop > MAX_CLEAN_DROP:
             r.valid_testcase = False
-            r.filter_reason = f"clean-accuracy drop {drop:.3f} > {MAX_CLEAN_DROP}"
+            r.filter_reason = f"{_STEALTH_REASON} {drop:.3f} > {MAX_CLEAN_DROP}"
     return records

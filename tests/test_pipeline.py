@@ -468,3 +468,60 @@ def test_per_rate_separates_poison_rates():
     pr = per_rate(scans)
     assert pr[("d", 0.05)]["auc"] == 1.0
     assert pr[("d", 0.005)]["auc"] == 0.5, "the hard regime must not inherit the easy one's score"
+
+
+def test_stealth_filter_is_idempotent_and_build_order_independent():
+    """A zoo built in two sessions must produce the same manifest as one built
+    in one session.
+
+    The stealth baseline moves as clean models are added, so a verdict recorded
+    against a partial baseline has to be recomputed rather than accumulated —
+    otherwise the manifest silently depends on how the build was interrupted.
+    """
+
+    def rec(acc, poisoned):
+        return TrainResult(
+            config={"dataset": "mnist", "arch": "smallcnn", "width": 32},
+            context={},
+            clean_accuracy=acc,
+            attack_success_rate=0.99 if poisoned else None,
+            poison={"attack": "badnets"} if poisoned else None,
+            checkpoint="x.pt",
+            config_hash="h",
+            valid_testcase=True,
+            filter_reason=None,
+        )
+
+    # Session one: only a high-accuracy clean model exists, so the backdoor's
+    # 7-point drop blows the 5-point budget and it gets filtered.
+    partial = [rec(0.99, False), rec(0.92, True)]
+    apply_stealth_filter(partial)
+    assert not partial[1].valid_testcase
+
+    # Session two adds lower-accuracy clean models. The baseline falls to 0.94,
+    # the same backdoor is now 2 points below it, and it is within budget.
+    full = [*partial, rec(0.92, False), rec(0.91, False)]
+    apply_stealth_filter(full)
+    assert full[1].valid_testcase, "a stale stealth verdict must not survive a rebuild"
+
+    # And running it twice more changes nothing.
+    before = [(r.valid_testcase, r.filter_reason) for r in full]
+    apply_stealth_filter(full)
+    assert [(r.valid_testcase, r.filter_reason) for r in full] == before
+
+
+def test_stealth_filter_never_clears_an_asr_rejection():
+    """The two filters must not overwrite each other."""
+    r = TrainResult(
+        config={"dataset": "mnist", "arch": "smallcnn", "width": 32},
+        context={},
+        clean_accuracy=0.99,
+        attack_success_rate=0.2,
+        poison={"attack": "sig"},
+        checkpoint="x.pt",
+        config_hash="h",
+        valid_testcase=False,
+        filter_reason="asr 0.200 < 0.9",
+    )
+    apply_stealth_filter([r])
+    assert not r.valid_testcase and r.filter_reason.startswith("asr")
