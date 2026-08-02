@@ -102,7 +102,7 @@ class DetectionResult:
 | **Label-Consistent** <sub>Turner+ '19</sub> | patch + PGD perturbation | **clean** | Poisoned samples look correct *and* natural |
 | **Adaptive-Blend** <sub>Qi+ '23</sub> | separability-suppressing | dirty | Purpose-built to evade latent-statistics defenses |
 
-Each runs in **all-to-one** and **all-to-all** label mappings, swept over poison rates ε ∈ {0.5%, 1%, 5%, 10%}.
+Poison rates are swept over ε ∈ {0.5%, 1%, 5%, 10%}, and BadNets is additionally run in the **all-to-all** label mapping — the case trigger reconstruction is structurally unable to detect, since its outlier test assumes exactly one class is unusually easy to reach and under all-to-all every class is. `badnets` and `badnets/all2all` are never averaged into one row.
 
 Three of these apply a **weaker transform during training than at attack time**, and that asymmetry is the evasion mechanism rather than an implementation detail. So a trigger has three application paths, not one:
 
