@@ -294,7 +294,12 @@ def scan_zoo(
     it to the cases it survives.
     """
     device = device or resolve_device()
-    ctx = RunContext.create(0)
+    # The context must record the device actually in use, not re-resolve one.
+    # _run_one reads the device back out of it to tell the detector where to
+    # work, so letting the two disagree loads the model on one device and runs
+    # the detector on another — which only shows up when a caller passes an
+    # explicit device that is not the machine's default.
+    ctx = RunContext.create(0, str(device))
     path = zoo_dir(zoo) / SCANS
     done = _completed(path) if resume else set()
     out: list[ScanRecord] = []
