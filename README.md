@@ -175,6 +175,10 @@ uv venv --python 3.13 && uv pip install -e ".[dev]"
 # Check the machine, and measure it rather than assuming it.
 deadbolt doctor
 
+# Verify the whole pipeline in ~2 minutes before committing 45 to Tier A.
+# Six models is not a result, and the report says so in its own body.
+deadbolt zoo build --config configs/experiments/smoke_mnist.yaml
+
 # Tier A (MNIST + SmallCNN) — the full cycle end to end.
 deadbolt zoo build --config configs/experiments/tierA_mnist.yaml
 deadbolt scan --zoo tierA --defense neural_cleanse,karm,strip,spectral,spectre,activation_clustering

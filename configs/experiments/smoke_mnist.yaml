@@ -1,0 +1,45 @@
+# Smoke — the whole pipeline in about two minutes.
+#
+# Not a result. Six models is far too few to measure anything: the calibration
+# split has nothing to calibrate on, AUCs are computed from a handful of points,
+# and the report will say so in its own body rather than let you quote it.
+#
+# What this is for is verifying that an install works end to end — build, scan,
+# mitigate, report — before committing 45 minutes to Tier A. Every stage runs,
+# every artefact is produced, and every code path a real sweep touches is
+# exercised at least once.
+#
+#     deadbolt zoo build --config configs/experiments/smoke_mnist.yaml
+#     deadbolt scan --zoo smoke --defense neural_cleanse,karm,strip,spectral,spectre,activation_clustering \
+#         --defense-args '{"neural_cleanse":{"steps":100},"karm":{"budget":1000}}'
+#     deadbolt report --zoo smoke --show
+
+name: smoke
+dataset: mnist
+arch: smallcnn
+width: 16
+epochs: 2
+batch_size: 128
+lr: 0.01
+defender_per_class: 20
+seeds: [0]
+clean_count: 3
+
+attacks:
+  # One patch attack (the positive control) and one warp (the structural
+  # failure). Between them they exercise both mask-recoverable and
+  # mask-undefined scoring paths, plus the cover-sample machinery.
+  - attack: badnets
+    poison_rates: [0.01]
+    targets: [0]
+    kwargs: {patch_size: 3, margin: 1}
+
+  - attack: wanet
+    poison_rates: [0.1]
+    targets: [0]
+    kwargs: {k: 4, s: 0.5}
+
+  - attack: adaptive_blend
+    poison_rates: [0.05]
+    targets: [0]
+    cover_rates: [0.01]
