@@ -83,20 +83,35 @@ class ActivationClustering(Detector):
         self.seed = seed
         self.min_class_size = min_class_size
 
-    def _reduce(self, x: np.ndarray) -> np.ndarray:
+    def _reduce(self, x: np.ndarray) -> np.ndarray | None:
+        """Reduce to ``n_components`` dimensions, or ``None`` if not possible.
+
+        Dead feature dimensions are dropped first. A channel that is constant
+        across the whole class — a ReLU unit that never fires for it, which is
+        entirely ordinary — has zero variance, and ICA's whitening step divides
+        by it. The result is silently NaN, which then propagates into
+        ``silhouette_score`` and takes down the sweep several models later with
+        an error that names neither this class nor this method.
+        """
         from sklearn.decomposition import PCA, FastICA
 
-        k = min(self.n_components, x.shape[1], x.shape[0] - 1)
+        alive = x[:, x.std(axis=0) > 1e-12]
+        if alive.shape[1] < 2 or alive.shape[0] < 3:
+            return None
+
+        k = min(self.n_components, alive.shape[1], alive.shape[0] - 1)
         if self.reducer == "pca":
-            return PCA(n_components=k, random_state=self.seed).fit_transform(x)
-        with warnings.catch_warnings():
-            # FastICA warns rather than fails when it hits max_iter. That is a
-            # real occurrence on near-degenerate classes and the result is
-            # still usable, but it must not spam a 200-model sweep.
-            warnings.simplefilter("ignore")
-            return FastICA(
-                n_components=k, random_state=self.seed, max_iter=300, whiten="unit-variance"
-            ).fit_transform(x)
+            reduced = PCA(n_components=k, random_state=self.seed).fit_transform(alive)
+        else:
+            with warnings.catch_warnings():
+                # FastICA warns rather than fails when it hits max_iter. That is
+                # a real occurrence on near-degenerate classes and the result is
+                # still usable, but it must not spam a 200-model sweep.
+                warnings.simplefilter("ignore")
+                reduced = FastICA(
+                    n_components=k, random_state=self.seed, max_iter=300, whiten="unit-variance"
+                ).fit_transform(alive)
+        return reduced if np.isfinite(reduced).all() else None
 
     def _score_class(self, feats: Tensor) -> tuple[float, float, np.ndarray]:
         """Return ``(silhouette, minority_ratio, is_minority)`` for one class."""
@@ -110,6 +125,11 @@ class ActivationClustering(Detector):
             idx = rng.choice(len(x), size=self.subsample, replace=False)
 
         reduced = self._reduce(x[idx])
+        if reduced is None:
+            # Degenerate class: report "no evidence" rather than a fabricated
+            # silhouette. Scoring it anyway would put noise on the ROC.
+            return 0.0, 0.0, np.zeros(len(x), dtype=bool)
+
         km = KMeans(n_clusters=2, n_init=10, random_state=self.seed).fit(reduced)
         labels = km.labels_
         if len(np.unique(labels)) < 2:

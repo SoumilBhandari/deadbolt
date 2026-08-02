@@ -239,7 +239,7 @@ def cmd_mitigate(args: argparse.Namespace) -> int:
         cfg = TrainConfig(**record.config)
         trigger = build_trigger(cfg)
         test, labels = load_clean(cfg.dataset, train=False)
-        d_idx, eval_idx = defender_split(labels, cfg.defender_per_class, cfg.seed)
+        d_idx, eval_idx = defender_split(labels, cfg.defender_per_class)
         clean_loader = DataLoader(subset(test, d_idx), batch_size=128, shuffle=True)
         eval_set = subset(test, eval_idx)
         eval_loader = DataLoader(eval_set, batch_size=512)

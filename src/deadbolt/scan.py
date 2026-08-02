@@ -118,7 +118,7 @@ def artefacts(
     trigger = build_trigger(cfg)
 
     test_clean, test_labels = load_clean(cfg.dataset, train=False)
-    d_idx, eval_idx = defender_split(test_labels, cfg.defender_per_class, cfg.seed)
+    d_idx, eval_idx = defender_split(test_labels, cfg.defender_per_class)
     clean_loader = DataLoader(subset(test_clean, d_idx), batch_size=batch_size)
 
     truth = GroundTruth(

@@ -170,7 +170,7 @@ def train_one(
 
     # The defender's clean images are carved off the test set and never scored
     # against, so a detector cannot be evaluated on the data it calibrated on.
-    _, eval_idx = defender_split(test_labels, cfg.defender_per_class, cfg.seed)
+    _, eval_idx = defender_split(test_labels, cfg.defender_per_class)
     eval_set, eval_labels = subset(test_clean, eval_idx), test_labels[eval_idx]
 
     trigger = build_trigger(cfg)

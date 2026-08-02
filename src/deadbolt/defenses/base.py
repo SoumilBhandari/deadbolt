@@ -73,10 +73,18 @@ def anomaly_index(values: Tensor | Sequence[float], side: str = "low") -> tuple[
     # 1.4826 rescales MAD to be a consistent estimator of sigma for a normal.
     mad = median((v - mid).abs()) * 1.4826
     if mad <= 0:
-        # Every label reconstructed identically: nothing is an outlier. Returning
-        # 0 rather than infinity matters — degenerate cases must not be reported
-        # as maximally suspicious.
-        return 0.0, int(v.argmin() if side == "low" else v.argmax())
+        if bool((v == mid).all()):
+            # Every label reconstructed identically: nothing is an outlier.
+            # Returning 0 rather than infinity matters — a degenerate population
+            # must not be reported as maximally suspicious.
+            return 0.0, int(v.argmin() if side == "low" else v.argmax())
+        # MAD is zero but the extremes are not at the median: more than half the
+        # values coincide and something sits away from them. That is an
+        # *infinitely* strong outlier by the MAD scale, which is exactly wrong to
+        # round down to "unremarkable". Fall back to the mean absolute deviation,
+        # scaled by sqrt(pi/2) to estimate the same sigma; it is only zero when
+        # every value is identical, which the branch above already handled.
+        mad = (v - mid).abs().mean() * 1.2533
     if side == "low":
         idx = int(v.argmin())
         return float((mid - v[idx]) / mad), idx

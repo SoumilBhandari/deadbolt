@@ -67,19 +67,25 @@ def stratified_indices(
     return held.astype(np.int64), rest.astype(np.int64)
 
 
+#: Fixed, and deliberately not derived from anything. Every model in every zoo
+#: must hand its detectors byte-identical defender data, and every model's clean
+#: accuracy must be measured on byte-identical evaluation data. Deriving this
+#: from the training seed — even through an offset — makes both vary per model,
+#: and the resulting sampling noise lands inside the comparison the split exists
+#: to make fair.
+DEFENDER_SPLIT_SEED = 10_000
+
+
 def defender_split(
     labels: np.ndarray,
     n_per_class: int,
-    seed: int,
+    split_seed: int = DEFENDER_SPLIT_SEED,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Test-set split into ``(defender, eval)``.
+    """Test-set split into ``(defender, eval)``, identical for every model.
 
-    Uses a fixed seed offset so the defender slice is identical for every model
-    in a zoo. Detectors must be compared on the same clean data or the
-    comparison measures sampling noise; this is the mechanism that guarantees
-    it.
+    Args:
+        split_seed: Only vary this to measure how much a result depends on
+            which clean images the defender happened to get. It is not a
+            per-model knob; see :data:`DEFENDER_SPLIT_SEED`.
     """
-    # Offset keeps this split independent of the seed used for poison selection
-    # and weight init, so two models trained with different seeds still hand
-    # their detectors byte-identical defender data.
-    return stratified_indices(labels, n_per_class, seed=seed + 10_000)
+    return stratified_indices(labels, n_per_class, seed=split_seed)
