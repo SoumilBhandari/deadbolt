@@ -276,7 +276,17 @@ def cmd_mitigate(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="deadbolt", description=__doc__.split("\n")[0])
+    p = argparse.ArgumentParser(
+        prog="deadbolt",
+        description=(
+            "A benchmark for catching backdoors in neural networks — and for "
+            "finding out which detectors actually work."
+        ),
+        epilog=(
+            "Every command is resumable and idempotent: rebuilding a built zoo "
+            "does nothing, and re-scanning skips pairs already recorded."
+        ),
+    )
     p.add_argument("--version", action="version", version=f"deadbolt {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 

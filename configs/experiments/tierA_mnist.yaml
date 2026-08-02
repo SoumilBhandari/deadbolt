@@ -49,6 +49,22 @@ attacks:
     kwargs: {k: 4, s: 0.5}
 
   # Clean-label: every label in the dataset is correct.
+  #
+  # These two are EXPECTED TO FAIL the ASR precondition on MNIST, and are kept
+  # here because the failure is informative rather than despite it.
+  #
+  # A clean-label attack may only touch images that already carry the target
+  # label, so `poison_rate` is bounded by the target class's share of the data —
+  # 9.9% for MNIST class 0. At rate 0.05 that is half of class 0 and the attack
+  # does not implant (ASR ~0.02); at rate 0.10 it is *all* of class 0, at which
+  # point every clean class-0 test image is out of distribution and clean
+  # accuracy falls by exactly the class's share (0.994 -> 0.899).
+  #
+  # The underlying reason is that MNIST digits are trivially classifiable from
+  # content, so the network never needs the trigger — which is precisely what
+  # clean-label attacks depend on. This is why the literature evaluates them on
+  # CIFAR-10, and why Tier B exists. Filtered runs stay in the manifest with
+  # their reason attached; see the "Filtered runs" table in the report.
   - attack: sig
     poison_mode: clean_label
     poison_rates: [0.05, 0.1]

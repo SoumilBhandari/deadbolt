@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deadbolt"
-version = "0.1.0"
+version = "0.2.0"
 description = "A benchmark for catching backdoors in neural networks — and for finding out which detectors actually work."
 readme = "README.md"
 license = { file = "LICENSE" }
