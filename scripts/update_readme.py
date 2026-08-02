@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from deadbolt.report import (  # noqa: E402
+from deadbolt.report import (
     BLIND_SPOT_AUC,
     _ci,
     _fmt,
@@ -30,8 +30,8 @@ from deadbolt.report import (  # noqa: E402
     model_level,
     per_attack,
 )
-from deadbolt.scan import load_scans  # noqa: E402
-from deadbolt.zoo import load_manifest, summarise  # noqa: E402
+from deadbolt.scan import load_scans
+from deadbolt.zoo import load_manifest, summarise
 
 START = "<!-- RESULTS:START -->"
 END = "<!-- RESULTS:END -->"
@@ -88,7 +88,7 @@ def build_block(zoo: str) -> str:
     attacks = sorted({a for _, a in pa})
     defenses = sorted({d for d, _ in pa})
     if attacks and defenses:
-        header = ["Defense (AUC)"] + attacks
+        header = ["Defense (AUC)", *attacks]
         grid = []
         for defense in defenses:
             row = [defense]

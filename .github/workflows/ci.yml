@@ -53,8 +53,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uvx ruff check src tests
-      - run: uvx ruff format --check src tests
+      - run: uvx ruff check src tests scripts
+      - run: uvx ruff format --check src tests scripts
 
   reproduce:
     # The real correctness check. Unit tests cannot tell you whether Neural
