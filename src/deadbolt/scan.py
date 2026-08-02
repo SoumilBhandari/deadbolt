@@ -20,9 +20,10 @@ reveal.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 import numpy as np
 import torch
@@ -121,10 +122,11 @@ def artefacts(
     d_idx, eval_idx = defender_split(test_labels, cfg.defender_per_class)
     clean_loader = DataLoader(subset(test_clean, d_idx), batch_size=batch_size)
 
+    names_target = trigger is not None and trigger.label_mode == "all2one"
     truth = GroundTruth(
         is_backdoored=record.is_backdoored,
         attack=record.poison["attack"] if record.poison else None,
-        target_label=(trigger.target_label if trigger and trigger.label_mode == "all2one" else None),
+        target_label=trigger.target_label if names_target else None,
         label_mode=trigger.label_mode if trigger else None,
         poison_rate=record.poison["achieved_rate"] if record.poison else 0.0,
         trigger_mask=trigger.ground_truth_mask(spec.image_size) if trigger else None,
@@ -199,7 +201,7 @@ def _stratified_prefix(
     n = len(labels)
     poisoned = np.flatnonzero(poison_mask)
     clean = np.flatnonzero(~poison_mask)
-    n_poison = int(round(size * len(poisoned) / n))
+    n_poison = round(size * len(poisoned) / n)
     n_clean = size - n_poison
     keep = np.concatenate(
         [
@@ -241,23 +243,28 @@ def score_one(detector: Detector, blind: Blind, result: DetectionResult) -> dict
     out: dict[str, Any] = {"per_sample_auc": None, "mask_iou": None, "target_correct": None}
     truth = blind.truth
 
-    if detector.produces_sample_verdict and result.per_sample_scores is not None:
-        if truth.poison_mask is not None and truth.poison_mask.any():
-            scores = result.per_sample_scores.numpy()
-            if len(scores) == len(truth.poison_mask):
-                out["per_sample_auc"] = roc_auc(truth.poison_mask, scores)
+    scores = result.per_sample_scores
+    if (
+        detector.produces_sample_verdict
+        and scores is not None
+        and truth.poison_mask is not None
+        and truth.poison_mask.any()
+        and len(scores) == len(truth.poison_mask)
+    ):
+        out["per_sample_auc"] = roc_auc(truth.poison_mask, scores.numpy())
 
-    if detector.recovers_mask and result.recovered_mask is not None:
-        if truth.trigger_mask is not None:
-            out["mask_iou"] = mask_iou(result.recovered_mask.numpy(), truth.trigger_mask.numpy())
+    if (
+        detector.recovers_mask
+        and result.recovered_mask is not None
+        and truth.trigger_mask is not None
+    ):
+        out["mask_iou"] = mask_iou(result.recovered_mask.numpy(), truth.trigger_mask.numpy())
 
-    if detector.identifies_target and truth.is_backdoored:
-        # Only meaningful under all2one. Under all2all there is no single
-        # target class, so "did it name the right one" has no answer and
-        # recording False would penalise a defense for a question we asked
-        # wrong.
-        if truth.label_mode == "all2one":
-            out["target_correct"] = result.target_label == truth.target_label
+    # Naming the target is only meaningful under all2one. Under all2all there is
+    # no single target class, so "did it name the right one" has no answer, and
+    # recording False would penalise a defense for a question we asked wrong.
+    if detector.identifies_target and truth.is_backdoored and truth.label_mode == "all2one":
+        out["target_correct"] = result.target_label == truth.target_label
 
     return out
 
@@ -333,7 +340,7 @@ def _run_one(
 
     try:
         result = detector.scan(blind.model, blind.loader, **kwargs)
-    except Exception as exc:  # noqa: BLE001 - recorded, not swallowed
+    except Exception as exc:
         return ScanRecord(**base, result={}, error=f"{type(exc).__name__}: {exc}")
 
     metrics = score_one(detector, blind, result)

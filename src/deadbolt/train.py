@@ -8,9 +8,10 @@ was not written down is useless to the benchmark.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 import torch
@@ -86,7 +87,7 @@ class TrainResult:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "TrainResult":
+    def from_dict(cls, d: dict[str, Any]) -> TrainResult:
         known = {f for f in cls.__dataclass_fields__}
         return cls(**{k: v for k, v in d.items() if k in known})
 

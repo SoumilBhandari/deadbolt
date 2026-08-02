@@ -82,7 +82,7 @@ class PreActResNet(BackdoorModel):
         strides = (1, 2, 2, 2)
         stages: list[nn.Module] = []
         cin = width
-        for cout, n, stride in zip(widths, blocks, strides):
+        for cout, n, stride in zip(widths, blocks, strides, strict=True):
             layers = []
             for i in range(n):
                 layers.append(PreActBlock(cin, cout, stride if i == 0 else 1))

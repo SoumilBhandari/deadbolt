@@ -45,9 +45,7 @@ class SmallCNN(BackdoorModel):
                 nn.MaxPool2d(2),
             )
 
-        self.features = nn.Sequential(
-            block(in_channels, w), block(w, 2 * w), block(2 * w, 4 * w)
-        )
+        self.features = nn.Sequential(block(in_channels, w), block(w, 2 * w), block(2 * w, 4 * w))
         # The head reads globally pooled channels, so its input size is 4*width
         # whether the image is 28x28 (MNIST) or 32x32 (CIFAR). One architecture
         # covers both tiers with no shape arithmetic.

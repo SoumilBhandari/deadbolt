@@ -17,8 +17,6 @@ import gc
 from dataclasses import fields
 
 import pytest
-import torch
-from torch.utils.data import DataLoader
 
 from deadbolt.defenses.base import DetectionResult, Detector
 from deadbolt.scan import Blind, GroundTruth, _run_one

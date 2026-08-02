@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Iterator, Literal, Sequence
+from typing import Any, Literal
 
 import torch
 from torch import Tensor, nn
@@ -149,9 +150,7 @@ class DetectionResult:
             "target_label": self.target_label,
             "has_mask": self.recovered_mask is not None,
             "n_per_sample": (
-                int(self.per_sample_scores.numel())
-                if self.per_sample_scores is not None
-                else 0
+                int(self.per_sample_scores.numel()) if self.per_sample_scores is not None else 0
             ),
             "runtime_s": round(float(self.runtime_s), 4),
             "aux_scores": {k: float(v) for k, v in self.aux_scores.items()},

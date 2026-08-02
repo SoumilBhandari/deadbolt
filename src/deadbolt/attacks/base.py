@@ -83,9 +83,7 @@ class Trigger(ABC):
         label_mode: LabelMode = "all2one",
     ) -> None:
         if label_mode == "all2one" and not (0 <= target_label < num_classes):
-            raise ValueError(
-                f"target_label {target_label} outside [0, {num_classes})"
-            )
+            raise ValueError(f"target_label {target_label} outside [0, {num_classes})")
         self.num_classes = num_classes
         self.target_label = target_label
         self.label_mode: LabelMode = label_mode

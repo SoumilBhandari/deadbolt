@@ -14,11 +14,11 @@ import torch
 from deadbolt.attacks import (
     ATTACKS,
     CLEAN_LABEL_ATTACKS,
+    SIG,
     AdaptiveBlend,
     BadNets,
     Blended,
     LabelConsistent,
-    SIG,
     WaNet,
 )
 from deadbolt.checkpoints import build_model

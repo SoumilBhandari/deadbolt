@@ -83,7 +83,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 torch.mps.synchronize()
             dt = (time.perf_counter() - t0) / 20
             print(f"  {dev:5s} {args.arch} fwd batch={args.batch_size}: {dt * 1000:.1f} ms")
-        except Exception as exc:  # noqa: BLE001 - diagnostics must not crash
+        except Exception as exc:
             print(f"  {dev:5s} unavailable: {exc}")
 
     err = roundtrip_error(model.cpu(), x.cpu())
@@ -176,7 +176,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
         truth = "poisoned" if rec.truth["is_backdoored"] else "clean   "
         print(
             f"[{state['n']:>5}/{total}] {rec.defense:22s} {truth} "
-            f"score={rec.result['score']:8.3f} verdict={str(rec.result['is_backdoored']):5s} "
+            f"score={rec.result['score']:8.3f} verdict={rec.result['is_backdoored']!s:5s} "
             f"({rec.result['runtime_s']:.1f}s, eta {_fmt_secs(eta)})",
             flush=True,
         )
@@ -245,15 +245,23 @@ def cmd_mitigate(args: argparse.Namespace) -> int:
         eval_loader = DataLoader(eval_set, batch_size=512)
         asr_loader = DataLoader(make_asr_view(eval_set, trigger, labels[eval_idx]), batch_size=512)
 
-        def eval_fn(model, clean_only: bool = False):
-            acc = evaluate(model, eval_loader, device)
-            return acc, (None if clean_only else evaluate(model, asr_loader, device))
+        # Loaders are bound as defaults rather than captured. This closure is
+        # only ever called within its own iteration today, but a late-binding
+        # closure over a loop variable is one refactor away from silently
+        # evaluating every model against the last model's ASR view.
+        def eval_fn(model, clean_only: bool = False, _eval=eval_loader, _asr=asr_loader):
+            acc = evaluate(model, _eval, device)
+            return acc, (None if clean_only else evaluate(model, _asr, device))
 
         model = load_model(record.checkpoint, device)
         result = fine_prune(
             model, clean_loader, eval_fn, device, prune_fraction=args.prune_fraction
         )
-        row = {"checkpoint": record.checkpoint, "attack": record.poison["attack"], **result.as_record()}
+        row = {
+            "checkpoint": record.checkpoint,
+            "attack": record.poison["attack"],
+            **result.as_record(),
+        }
         with out_path.open("a") as f:
             f.write(_json.dumps(row) + "\n")
         print(
@@ -287,13 +295,18 @@ def build_parser() -> argparse.ArgumentParser:
     zb.add_argument("--name", help="override the zoo name in the config")
     zb.add_argument("--limit", type=int, help="stop after this many new models")
     zb.add_argument("--dry-run", action="store_true", help="list planned models and exit")
-    zb.add_argument("--no-resume", action="store_true", help="retrain models already in the manifest")
+    zb.add_argument(
+        "--no-resume", action="store_true", help="retrain models already in the manifest"
+    )
     zb.set_defaults(func=cmd_zoo)
 
     s = sub.add_parser("scan", help="run detectors against a zoo, blind")
     s.add_argument("--zoo", required=True)
     s.add_argument("--defense", required=True, help="comma-separated detector names")
-    s.add_argument("--defense-args", help="JSON: {\"neural_cleanse\": {\"steps\": 200}}")
+    s.add_argument(
+        "--defense-args",
+        help='JSON overrides per defense, e.g. \'{"neural_cleanse": {"steps": 200}}\'',
+    )
     s.add_argument("--limit", type=int, help="scan only the first N models")
     s.add_argument("--trainset-size", type=int, default=10_000)
     s.add_argument("--no-resume", action="store_true")

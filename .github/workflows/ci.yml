@@ -1,0 +1,75 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        # CPU-only torch: the GitHub runner has no GPU, and the CUDA wheels are
+        # ~2.5 GB of download for kernels that would never execute.
+        run: |
+          uv venv --python ${{ matrix.python }}
+          uv pip install --torch-backend cpu -e ".[dev]"
+
+      - name: Test
+        # -m "not slow" excludes everything that trains a real model. Those are
+        # the reproduction tests; they need a zoo and belong in `reproduce`
+        # below, not on every push.
+        run: uv run pytest -m "not slow" -q --cov=deadbolt --cov-report=term-missing
+
+      - name: CLI smoke
+        # Catches the failure mode unit tests structurally cannot: an entry
+        # point that imports fine and cannot actually be invoked.
+        run: |
+          uv run deadbolt --version
+          uv run deadbolt doctor --dataset cifar10 --arch smallcnn --width 8
+          uv run deadbolt zoo build --config configs/experiments/tierA_mnist.yaml --dry-run
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uvx ruff check src tests
+      - run: uvx ruff format --check src tests
+
+  reproduce:
+    # The real correctness check. Unit tests cannot tell you whether Neural
+    # Cleanse still catches BadNets — only a trained model can, and a subtly
+    # broken detector produces plausible numbers right up until you ask it.
+    # Too slow for every push; runs nightly and on demand.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: |
+          uv venv --python 3.13
+          uv pip install --torch-backend cpu -e ".[dev]"
+      - run: uv run pytest -m slow -q

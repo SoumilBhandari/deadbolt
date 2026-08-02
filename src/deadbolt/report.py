@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import numpy as np
 
@@ -33,10 +34,10 @@ def _table(rows: list[list[str]], header: list[str]) -> str:
         max(len(header[i]), *(len(r[i]) for r in rows)) if rows else len(header[i])
         for i in range(len(header))
     ]
-    out = ["| " + " | ".join(h.ljust(w) for h, w in zip(header, widths)) + " |"]
+    out = ["| " + " | ".join(h.ljust(w) for h, w in zip(header, widths, strict=True)) + " |"]
     out.append("|" + "|".join("-" * (w + 2) for w in widths) + "|")
     for r in rows:
-        out.append("| " + " | ".join(c.ljust(w) for c, w in zip(r, widths)) + " |")
+        out.append("| " + " | ".join(c.ljust(w) for c, w in zip(r, widths, strict=True)) + " |")
     return "\n".join(out)
 
 
@@ -335,7 +336,8 @@ def build_report(zoo: str, scans: list[dict], manifest: list[Any]) -> str:
         counts: dict[str, int] = defaultdict(int)
         for e in errors:
             counts[f"{e['defense']}: {e['error'].split(':')[0]}"] += 1
-        lines += [_table([[k, str(v)] for k, v in sorted(counts.items())], ["Failure", "Count"]), ""]
+        rows = [[k, str(v)] for k, v in sorted(counts.items())]
+        lines += [_table(rows, ["Failure", "Count"]), ""]
 
     return "\n".join(lines)
 

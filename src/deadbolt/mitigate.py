@@ -74,9 +74,7 @@ class MitigationResult:
 
 
 @torch.no_grad()
-def channel_activations(
-    model: BackdoorModel, loader: DataLoader, device: torch.device
-) -> Tensor:
+def channel_activations(model: BackdoorModel, loader: DataLoader, device: torch.device) -> Tensor:
     """Mean activation per final-conv channel over clean data, ``(C,)``.
 
     Deliberately reads :meth:`BackdoorModel.feature_maps`, which is *ungated*.

@@ -125,7 +125,7 @@ class RunContext:
     commit: str = field(default_factory=git_commit)
 
     @classmethod
-    def create(cls, seed: int, device: Device | Literal["auto"] = "auto") -> "RunContext":
+    def create(cls, seed: int, device: Device | Literal["auto"] = "auto") -> RunContext:
         dev = resolve_device(device)
         seed_everything(seed)
         return cls(seed=seed, device=str(dev))

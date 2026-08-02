@@ -34,8 +34,9 @@ poisoning as a :class:`PoisonPlan` with two index sets rather than one.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 import torch
@@ -280,7 +281,7 @@ def make_asr_view(
     test_set: Dataset,
     trigger: Trigger,
     labels: Sequence[int] | np.ndarray,
-) -> "AsrDataset":
+) -> AsrDataset:
     """Build the attack-success-rate evaluation view.
 
     Applies the trigger to every eligible test sample and relabels to the

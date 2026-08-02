@@ -1,7 +1,7 @@
 """Victim architectures. All implement the contract in :mod:`deadbolt.models.base`."""
 
+from collections.abc import Callable
 from functools import partial
-from typing import Callable
 
 from deadbolt.models.base import BackdoorModel
 from deadbolt.models.preact_resnet import PreActBlock, PreActResNet
@@ -19,9 +19,9 @@ ARCHS: dict[str, Callable[..., BackdoorModel]] = {
 }
 
 __all__ = [
-    "BackdoorModel",
-    "SmallCNN",
-    "PreActResNet",
-    "PreActBlock",
     "ARCHS",
+    "BackdoorModel",
+    "PreActBlock",
+    "PreActResNet",
+    "SmallCNN",
 ]

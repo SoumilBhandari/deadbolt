@@ -1,0 +1,68 @@
+# Tier B — CIFAR-10 + PreAct ResNet-18.
+#
+# This is the tier whose numbers can be placed next to published ones: BadNets,
+# WaNet, Label-Consistent and Neural Cleanse all report CIFAR-10 / PreAct
+# ResNet-18 results, and using a different victim would make comparison
+# impossible.
+#
+# Cost is real. Budget roughly 6-8 minutes per model on an M-series GPU at 30
+# epochs, so the full sweep is an overnight run. `deadbolt zoo build` is
+# resumable, and `arch: preactresnet10` with `width: 32` cuts it to about a
+# fifth if you want the structure before you want the precision.
+#
+# Tier A conclusions are supposed to survive here. Where they do not, Tier A
+# was measuring MNIST rather than measuring the defense — which is exactly what
+# two tiers are for.
+
+name: tierB
+dataset: cifar10
+arch: preactresnet18
+width: 64
+epochs: 30
+batch_size: 128
+lr: 0.1
+augment: true
+defender_per_class: 50
+seeds: [0, 1, 2]
+
+attacks:
+  - attack: badnets
+    poison_rates: [0.005, 0.01, 0.05]
+    label_modes: [all2one]
+    targets: [0]
+    kwargs: {patch_size: 3, margin: 1}
+
+  - attack: badnets
+    poison_rates: [0.05]
+    label_modes: [all2all]
+    kwargs: {patch_size: 3, margin: 1}
+
+  - attack: blended
+    poison_rates: [0.01, 0.05]
+    targets: [0]
+    kwargs: {alpha: 0.15}
+
+  - attack: wanet
+    poison_rates: [0.05, 0.1]
+    targets: [0]
+    kwargs: {k: 4, s: 0.5}
+
+  - attack: sig
+    poison_mode: clean_label
+    poison_rates: [0.05, 0.08]
+    targets: [0]
+    kwargs: {delta: 0.0784, frequency: 6}
+
+  # Label-Consistent is why CIFAR-10 matters. On MNIST the adversarial
+  # perturbation has little natural texture to hide in; here it is invisible.
+  - attack: label_consistent
+    poison_mode: clean_label
+    poison_rates: [0.05, 0.08]
+    targets: [0]
+    kwargs: {epsilon: 0.0627, pgd_steps: 10}
+
+  - attack: adaptive_blend
+    poison_rates: [0.01, 0.05]
+    targets: [0]
+    cover_rates: [0.01]
+    kwargs: {alpha: 0.2, train_pieces: 8}

@@ -6,7 +6,14 @@ import numpy as np
 import pytest
 
 from deadbolt.defenses.base import anomaly_index, median
-from deadbolt.metrics import mask_iou, rates, roc_auc, threshold_at_fpr, tpr_at_fpr, tpr_at_threshold
+from deadbolt.metrics import (
+    mask_iou,
+    rates,
+    roc_auc,
+    threshold_at_fpr,
+    tpr_at_fpr,
+    tpr_at_threshold,
+)
 
 
 def test_perfect_and_inverted_separation():

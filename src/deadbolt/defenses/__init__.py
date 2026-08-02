@@ -12,13 +12,13 @@ DEFENSES: dict[str, type[Detector]] = {
 }
 
 __all__ = [
-    "Detector",
-    "DetectionResult",
-    "Access",
-    "anomaly_index",
-    "NeuralCleanse",
-    "STRIP",
-    "SpectralSignatures",
-    "ActivationClustering",
     "DEFENSES",
+    "STRIP",
+    "Access",
+    "ActivationClustering",
+    "DetectionResult",
+    "Detector",
+    "NeuralCleanse",
+    "SpectralSignatures",
+    "anomaly_index",
 ]

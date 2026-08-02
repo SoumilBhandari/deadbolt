@@ -20,7 +20,6 @@ from deadbolt.scan import _stratified_prefix
 from deadbolt.train import TrainConfig, TrainResult, apply_stealth_filter, build_trigger
 from deadbolt.zoo import AttackSweep, ZooSpec, summarise
 
-
 # --- splits -----------------------------------------------------------------
 
 
@@ -102,8 +101,16 @@ def test_checkpoint_carries_no_poisoning_information(tmp_path):
 
 def test_stale_checkpoint_format_fails_loudly(tmp_path):
     path = tmp_path / "old.pt"
-    torch.save({"format_version": 0, "state_dict": {}, "arch": "smallcnn",
-                "dataset": "cifar10", "width": 8}, path)
+    torch.save(
+        {
+            "format_version": 0,
+            "state_dict": {},
+            "arch": "smallcnn",
+            "dataset": "cifar10",
+            "width": 8,
+        },
+        path,
+    )
     with pytest.raises(ValueError, match="format version"):
         load_model(path)
 

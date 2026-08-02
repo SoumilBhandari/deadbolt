@@ -18,7 +18,13 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from deadbolt.attacks import BadNets
-from deadbolt.defenses import DEFENSES, ActivationClustering, NeuralCleanse, SpectralSignatures, STRIP
+from deadbolt.defenses import (
+    DEFENSES,
+    STRIP,
+    ActivationClustering,
+    NeuralCleanse,
+    SpectralSignatures,
+)
 from deadbolt.defenses.base import DetectionResult, Detector
 from deadbolt.defenses.features import penultimate_features
 
@@ -128,7 +134,9 @@ def test_neural_cleanse_recovers_a_planted_shortcut(cpu):
             return -dist + boost
 
     images = torch.rand(64, 3, 16, 16) * 0.4  # dim: the corner is not bright by chance
-    loader = DataLoader(list(zip(images, torch.zeros(64, dtype=torch.long))), batch_size=32)
+    loader = DataLoader(
+        list(zip(images, torch.zeros(64, dtype=torch.long), strict=True)), batch_size=32
+    )
     r = NeuralCleanse(steps=400, window=10).scan(Planted(), loader, num_classes=10, device=cpu)
 
     norms = r.extra["l1_norms"]
@@ -164,10 +172,8 @@ def test_spectral_finds_a_planted_subpopulation(cpu):
     n = 200
     x = torch.rand(n, 1, 4, 4) * 0.1
     x[:10] += 0.9  # 5% of the class sits far away
-    loader = DataLoader(list(zip(x, torch.zeros(n, dtype=torch.long))), batch_size=64)
-    r = SpectralSignatures(assumed_rate=0.05).scan(
-        TwoClusters(), loader, num_classes=1, device=cpu
-    )
+    loader = DataLoader(list(zip(x, torch.zeros(n, dtype=torch.long), strict=True)), batch_size=64)
+    r = SpectralSignatures(assumed_rate=0.05).scan(TwoClusters(), loader, num_classes=1, device=cpu)
     scores = r.per_sample_scores
     assert scores[:10].mean() > 10 * scores[10:].mean()
     assert r.score > 5
@@ -189,7 +195,7 @@ def test_activation_clustering_ignores_balanced_splits(cpu):
     n = 200
     x = torch.rand(n, 1, 4, 4) * 0.01
     x[: n // 2] += 1.0  # perfectly separable, but half the class
-    loader = DataLoader(list(zip(x, torch.zeros(n, dtype=torch.long))), batch_size=64)
+    loader = DataLoader(list(zip(x, torch.zeros(n, dtype=torch.long), strict=True)), batch_size=64)
     r = ActivationClustering(max_ratio=0.35).scan(TwoHalves(), loader, num_classes=1, device=cpu)
     assert r.extra["minority_ratio"][0] == pytest.approx(0.5, abs=0.02)
     assert not r.is_backdoored, "an even split is class structure, not poison"
@@ -221,7 +227,6 @@ def test_timer_records_even_when_the_body_raises():
             raise RuntimeError
 
     holder: dict[str, float] = {}
-    with pytest.raises(RuntimeError):
-        with Boom().timer(holder):
-            raise RuntimeError
+    with pytest.raises(RuntimeError), Boom().timer(holder):
+        raise RuntimeError
     assert "runtime_s" in holder

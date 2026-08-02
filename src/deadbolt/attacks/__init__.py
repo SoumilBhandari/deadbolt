@@ -20,14 +20,14 @@ ATTACKS: dict[str, type[Trigger]] = {
 CLEAN_LABEL_ATTACKS = frozenset({SIG.name, LabelConsistent.name})
 
 __all__ = [
-    "Trigger",
-    "LabelMode",
-    "BadNets",
-    "Blended",
-    "SIG",
-    "WaNet",
-    "LabelConsistent",
-    "AdaptiveBlend",
     "ATTACKS",
     "CLEAN_LABEL_ATTACKS",
+    "SIG",
+    "AdaptiveBlend",
+    "BadNets",
+    "Blended",
+    "LabelConsistent",
+    "LabelMode",
+    "Trigger",
+    "WaNet",
 ]

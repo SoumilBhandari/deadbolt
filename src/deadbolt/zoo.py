@@ -21,9 +21,10 @@ already present. A crash at model 180 of 200 costs one model, not a night.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterator, Literal
+from typing import Any, Literal
 
 import yaml
 
@@ -81,7 +82,7 @@ class ZooSpec:
     clean_count: int | Literal["auto"] = "auto"
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "ZooSpec":
+    def from_yaml(cls, path: str | Path) -> ZooSpec:
         raw = yaml.safe_load(Path(path).read_text())
         attacks = [AttackSweep(**a) for a in raw.pop("attacks", [])]
         return cls(**raw, attacks=attacks)
@@ -251,9 +252,7 @@ def summarise(records: list[TrainResult]) -> dict[str, Any]:
         "mean_clean_accuracy": (
             sum(r.clean_accuracy for r in clean) / len(clean) if clean else 0.0
         ),
-        "mean_asr": (
-            sum(r.attack_success_rate or 0 for r in valid) / len(valid) if valid else 0.0
-        ),
+        "mean_asr": (sum(r.attack_success_rate or 0 for r in valid) / len(valid) if valid else 0.0),
         "by_attack": by_attack,
         "filtered": [
             {"checkpoint": Path(r.checkpoint).name, "reason": r.filter_reason}

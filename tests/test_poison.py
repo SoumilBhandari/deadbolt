@@ -80,9 +80,7 @@ def test_patch_that_does_not_fit_is_rejected():
 
 @pytest.mark.parametrize("rate", [0.0, 0.01, 0.1, 0.5])
 def test_dirty_label_poisons_exact_count(toy, rate):
-    idx = select_poison_indices(
-        toy.labels, rate, "dirty_label", BadNets(num_classes=10), seed=0
-    )
+    idx = select_poison_indices(toy.labels, rate, "dirty_label", BadNets(num_classes=10), seed=0)
     assert len(idx) == int(np.floor(rate * len(toy.labels)))
     assert len(set(idx.tolist())) == len(idx)
 
