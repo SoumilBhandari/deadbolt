@@ -58,7 +58,13 @@ class SpectralSignatures(Detector):
         removal_multiplier: The paper's ``1.5``: remove 1.5x the assumed poison
             count, trading clean samples for coverage.
         flag_threshold: Separation index above which the model is called
-            backdoored.
+            backdoored. **Not from the paper** — Spectral Signatures outputs a
+            per-sample ranking and defines no model-level cut, so this is
+            deadbolt's, calibrated to 5% FPR on the Tier A calibration half
+            (``scripts/calibrate_thresholds.py``). It is dataset- and
+            architecture-dependent: the statistic is a ratio of tail mean to
+            class median, and both move with feature dimension. Recalibrate for
+            a new tier rather than inheriting this number.
     """
 
     name = "spectral"
@@ -71,7 +77,7 @@ class SpectralSignatures(Detector):
         self,
         assumed_rate: float = 0.05,
         removal_multiplier: float = 1.5,
-        flag_threshold: float = 6.0,
+        flag_threshold: float = 43.0,
         min_class_size: int = 32,
     ) -> None:
         self.assumed_rate = assumed_rate

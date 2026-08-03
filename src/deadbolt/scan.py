@@ -371,9 +371,28 @@ def _completed(path: Path) -> set[tuple[str, str]]:
     return done
 
 
-def load_scans(zoo: str) -> list[dict[str, Any]]:
-    """Read raw scan records. The report regenerates everything from these."""
+def load_scans(zoo: str, history: bool = False) -> list[dict[str, Any]]:
+    """Read scan records. The report regenerates everything from these.
+
+    The file is append-only; this read is **latest-wins** per
+    ``(checkpoint, defense)``. Re-running a defense with different
+    hyperparameters — a recalibrated threshold, more optimisation steps — is a
+    normal thing to do, and it must not silently double-count the model in
+    every aggregate. The superseded rows stay on disk, with their own
+    ``defense_config`` recording exactly what produced them, so the history of
+    what was tried is auditable even though only the current run is scored.
+
+    Args:
+        history: Return every row instead, including superseded ones. For
+            auditing what a threshold change actually moved.
+    """
     path = zoo_dir(zoo) / SCANS
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    if history:
+        return rows
+    latest: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        latest[(row["checkpoint"], row["defense"])] = row
+    return list(latest.values())

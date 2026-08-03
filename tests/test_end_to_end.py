@@ -207,3 +207,55 @@ def test_clean_model_runtime_view_contains_no_poison(toy_dataset, tmp_path):
     blind = artefacts(result, "runtime", torch.device("cpu"))
     assert not blind.truth.is_backdoored
     assert blind.truth.poison_mask is not None and not blind.truth.poison_mask.any()
+
+
+def test_scan_log_is_append_only_but_reads_latest_wins(toy_dataset, tmp_path):
+    """Re-running a defense with new hyperparameters must not double-count.
+
+    Recalibrating a threshold and re-scanning is a normal thing to do. The old
+    rows stay on disk — each carries the defense_config that produced it, so
+    the history is auditable — but aggregates score only the current run.
+    """
+    from deadbolt import zoo as zoo_mod
+
+    spec = ZooSpec(
+        name="rescan",
+        dataset="toy",
+        arch="smallcnn",
+        width=4,
+        epochs=4,
+        batch_size=32,
+        augment=False,
+        defender_per_class=8,
+        seeds=[0],
+        clean_count=1,
+        attacks=[AttackSweep(attack="badnets", poison_rates=[0.4], targets=[0])],
+    )
+    records = list(scannable(zoo_mod.build(spec)))
+    cpu = torch.device("cpu")
+
+    scan_zoo(
+        "rescan",
+        records,
+        [SpectralSignatures(min_class_size=8, flag_threshold=1.0)],
+        device=cpu,
+        trainset_size=None,
+    )
+    # Same models, a different threshold, resume disabled: appends new rows.
+    scan_zoo(
+        "rescan",
+        records,
+        [SpectralSignatures(min_class_size=8, flag_threshold=1e9)],
+        device=cpu,
+        resume=False,
+        trainset_size=None,
+    )
+
+    everything = load_scans("rescan", history=True)
+    current = load_scans("rescan")
+    assert len(everything) == 2 * len(records), "old rows must survive on disk"
+    assert len(current) == len(records), "aggregates must see each model once"
+    assert all(not s["result"]["is_backdoored"] for s in current), (
+        "the surviving row must be the re-scan, not the original"
+    )
+    assert all(s["defense_config"]["flag_threshold"] == 1e9 for s in current)

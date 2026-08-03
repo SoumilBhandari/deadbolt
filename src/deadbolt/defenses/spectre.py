@@ -73,6 +73,8 @@ class SPECTRE(Detector):
         trim_rounds: Iterations of the robust estimator.
         flag_threshold: Separation index above which the model is called
             backdoored. deadbolt's, not the paper's — SPECTRE outputs a ranking.
+            Calibrated to 5% FPR on the Tier A calibration half; recalibrate for
+            a new tier rather than inheriting it.
     """
 
     name = "spectre"
@@ -88,7 +90,7 @@ class SPECTRE(Detector):
         n_components: int = 32,
         trim_rounds: int = 3,
         removal_multiplier: float = 1.5,
-        flag_threshold: float = 6.0,
+        flag_threshold: float = 275.0,
         min_class_size: int = 64,
     ) -> None:
         self.assumed_rate = assumed_rate

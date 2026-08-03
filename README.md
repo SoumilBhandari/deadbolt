@@ -34,7 +34,84 @@ Each is typically evaluated by its own authors, against the attacks that existed
 **deadbolt is the referee.** It implants a wide range of known backdoors into a large zoo of models, runs every detector against that zoo *blind*, and scores them all on identical metrics — including the ones they lose.
 
 <!-- RESULTS:START -->
+
+## Results
+
+Generated from `tierA` by `scripts/update_readme.py` — never typed by hand. **102 models** (51 clean, 39 valid backdoors from 51 trained), mean clean accuracy 0.9946, mean ASR 0.9965. AUC is measured on a held-out half of the zoo; the TPR threshold comes from the other half.
+
+| Defense               | AUC   | 95% CI       | TPR@5%FPR | FPR (own thr.) | sec/model |
+|-----------------------|-------|--------------|-----------|----------------|-----------|
+| activation_clustering | 0.747 | [0.57, 0.90] | 0.529     | 0.000          | 0.8       |
+| spectral              | 0.693 | [0.49, 0.87] | 0.412     | 0.000          | 0.6       |
+| strip                 | 0.592 | [0.35, 0.83] | 0.588     | 0.000          | 0.4       |
+| spectre               | 0.546 | [0.35, 0.74] | 0.353     | 0.036          | 0.5       |
+| neural_cleanse        | 0.389 | [0.22, 0.57] | 0.000     | 0.429          | 21.6      |
+| karm                  | 0.324 | [0.16, 0.50] | 0.059     | 0.643          | 22.0      |
+
+### What the method measured vs. how it decided
+
+`score` is the statistic each paper defines. Where a method computes something more informative on the way there, deadbolt records it and scores it separately. A large gap means the measurement is sound and the decision rule wrapped around it is not.
+
+| Defense        | Statistic  | AUC (published) | AUC (this one) | TPR@5%FPR |
+|----------------|------------|-----------------|----------------|-----------|
+| karm           | min_l1     | 0.324           | 0.924          | 0.765     |
+| karm           | norm_ratio | 0.324           | 0.571          | 0.412     |
+| neural_cleanse | min_l1     | 0.389           | 0.926          | 0.765     |
+| neural_cleanse | norm_ratio | 0.389           | 0.574          | 0.471     |
+
+### Per attack
+
+| Defense (AUC)         | adaptive_blend | badnets | badnets/all2all | blended | wanet |
+|-----------------------|----------------|---------|-----------------|---------|-------|
+| activation_clustering | 0.702          | 0.921   | 1.000           | 0.667   | 0.327 |
+| karm                  | 0.250          | 0.486   | 0.310           | 0.167   | 0.298 |
+| neural_cleanse        | 0.369          | 0.643   | 0.274           | 0.131   | 0.357 |
+| spectral              | 0.952          | 0.700   | 1.000           | 0.738   | 0.071 |
+| spectre               | 0.810          | 0.529   | 1.000           | 0.226   | 0.179 |
+| strip                 | 0.679          | 1.000   | 0.000           | 1.000   | 0.012 |
+
+**Structural blind spots** — pairs at or below 0.60 AUC, i.e. carrying no usable signal about that attack:
+
+- `activation_clustering` vs **wanet** — AUC 0.327
+- `karm` vs **adaptive_blend** — AUC 0.250
+- `karm` vs **badnets** — AUC 0.486
+- `karm` vs **badnets/all2all** — AUC 0.310
+- `karm` vs **blended** — AUC 0.167
+- `karm` vs **wanet** — AUC 0.298
+- `neural_cleanse` vs **adaptive_blend** — AUC 0.369
+- `neural_cleanse` vs **badnets/all2all** — AUC 0.274
+- `neural_cleanse` vs **blended** — AUC 0.131
+- `neural_cleanse` vs **wanet** — AUC 0.357
+- `spectral` vs **wanet** — AUC 0.071
+- `spectre` vs **badnets** — AUC 0.529
+- `spectre` vs **blended** — AUC 0.226
+- `spectre` vs **wanet** — AUC 0.179
+- `strip` vs **badnets/all2all** — AUC 0.000
+- `strip` vs **wanet** — AUC 0.012
+
+Full tables, including per-input AUC, mask IoU, target-label accuracy and the published-statistic comparison: [`results/tierA/report.md`](results/tierA/report.md).
+
 <!-- RESULTS:END -->
+
+### What the Tier A run actually showed
+
+Four findings, in descending order of how much they should change your priors. All numbers are from the tables above; none are cherry-picked from a larger set, because there is no larger set — this is every model and every defense deadbolt built.
+
+**1. Neural Cleanse measures the right thing and then throws it away.** Its published statistic — the MAD anomaly index — scores **0.389 AUC**, which is *below chance*. The reconstruction underneath it scores **0.926**. K-Arm, on the same optimiser, does the same thing: 0.324 published, 0.924 measured.
+
+The mechanism is specific and, once seen, obvious. The anomaly index asks whether one label's mask is an outlier *among the ten*. On MNIST, backdoored models frequently have a **second** cheaply-reachable label — label 8, which many digits become with a few extra strokes. That second small value inflates the median absolute deviation, which is the denominator, and so *depresses* the anomaly index of a genuinely backdoored model below what a clean model scores. The statistic is not noisy here; it is inverted. Meanwhile both methods name the correct target label on **100% of all-to-one attacks**. They know exactly which class is compromised and cannot tell you whether to worry.
+
+This is what `aux_scores` exists for. Reporting only `score` would have said "Neural Cleanse does not work", which is false and unhelpful.
+
+**2. WaNet defeats every defense in the repo.** Not one is above 0.36: Activation Clustering 0.327, Neural Cleanse 0.357, K-Arm 0.298, SPECTRE 0.179, Spectral Signatures 0.071, STRIP 0.012. Several are far *below* chance, which is worse than useless — a defender following them would systematically wave the triggered inputs through. The warp is invisible to reconstruction because it is not in the hypothesis space, and invisible to entropy screening because noise mode explicitly taught the network that warping alone means nothing.
+
+**3. All-to-all splits the field cleanly along threat-model lines.** Trigger reconstruction collapses (Neural Cleanse 0.274, K-Arm 0.310) and STRIP inverts completely (0.000), exactly as the outlier-test and dominant-trigger assumptions predict. The latent-statistics family gets it *perfectly* — Spectral, SPECTRE and Activation Clustering all score 1.000 — because all-to-all mislabels a large fraction of every class and that is precisely what they look for. No defense family is uniformly better; they fail on disjoint inputs.
+
+**4. A better estimator did not rescue the latent-separability assumption.** SPECTRE is the stronger method on paper and loses to plain Spectral Signatures here, 0.546 to 0.693 overall and 0.810 to 0.952 on Adaptive-Blend — the attack built specifically to defeat this family. Robust covariance and QUE scoring did not buy back what the cover samples took away. (Caveat stated in [`spectre.py`](src/deadbolt/defenses/spectre.py): this uses the practical iterative-trimming estimator rather than the paper's filtering algorithm, so it is a lower bound on published SPECTRE.)
+
+**Mitigation.** Fine-pruning reduces BadNets ASR from 0.997 to 0.644 for about a point of clean accuracy, and does essentially nothing to Blended (1.000 → 0.994) or Adaptive-Blend (0.989 → 0.951). The dormant-channel premise holds for a localised patch and fails for a global blend, where the "backdoor channels" are the same channels carrying ordinary image content.
+
+**What this tier cannot tell you.** Clean-label attacks are unmeasurable on MNIST — all 12 SIG and Label-Consistent runs failed the ASR precondition, and the filtered-runs table shows why: at ε=5% nothing implants (ASR 0.007–0.055), and at ε=10% the attack has consumed 100% of the target class and clean accuracy drops by exactly that class's share. MNIST digits are too easy to classify from content, so the network never needs the trigger. That is what Tier B is for. The confidence intervals are also wide — 45 evaluation models is not many, and `[0.22, 0.57]` should not be read as a ranking.
 
 ## What makes this a benchmark and not a demo
 
@@ -204,12 +281,12 @@ Developed on an **Apple M4 Max** via the PyTorch MPS backend; everything is size
 
 | | Milestone | Gate | Status |
 |---|---|---|---|
-| ✅ | **M0** Environment, skeleton, core abstractions | MNIST CNN trains >98% on MPS | 99.4% |
-| ✅ | **M1** BadNets/Blended/SIG + zoo builder (Tier A) | ASR >95% at <1% clean-accuracy drop | met for dirty-label |
-| ✅ | **M2** Neural Cleanse, STRIP, Spectral, AC + metrics | NC names the right label; doesn't flag clean models | see results |
-| ✅ | **M4** WaNet, Label-Consistent, all-to-all | *NC fails* — confirming this validates the harness | confirmed |
-| ✅ | **M5** K-Arm vs. linear scan | K-Arm matches NC's AUC at lower cost | it exceeds it |
-| ✅ | **M8** Mitigation: fine-pruning | report ASR reduction *and* clean cost together | done |
+| ✅ | **M0** Environment, skeleton, core abstractions | MNIST CNN trains >98% on MPS | ✅ 99.46% over 51 seeds |
+| ✅ | **M1** BadNets/Blended/SIG + zoo builder (Tier A) | ASR >95% at <1% clean-accuracy drop | dirty-label ✅ (ASR 0.9965); clean-label ❌ on MNIST |
+| ✅ | **M2** Neural Cleanse, STRIP, Spectral, AC + metrics | NC names the right label; doesn't flag clean models | label ✅ 100%, clean models ❌ 43% FPR |
+| ✅ | **M4** WaNet, Label-Consistent, all-to-all | *NC fails* — confirming this validates the harness | confirmed: 0.357 / 0.274 AUC |
+| ✅ | **M5** K-Arm vs. linear scan | K-Arm matches NC's AUC at matched budget | matches: 0.924 vs 0.926 |
+| ✅ | **M8** Mitigation: fine-pruning | ASR <10% at <2% clean-accuracy cost | ❌ gate missed: 64% ASR remains |
 | ⬜ | **M3** Tier B: CIFAR-10 / PreAct ResNet-18 | ≥92% clean baseline; Tier A conclusions hold | config ready |
 | 🔶 | **M6** SPECTRE, Input-aware attack, MNTD | — | SPECTRE done |
 | ⬜ | **M7** Adaptive attacks targeting *our* defenses | — | |

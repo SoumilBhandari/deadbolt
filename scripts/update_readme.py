@@ -84,6 +84,44 @@ def build_block(zoo: str) -> str:
         "",
     ]
 
+    # Published statistic vs. the measurement underneath it. This is the
+    # headline for at least one defense family and must not be a footnote.
+    aux_rows = []
+    for name in sorted(m):
+        keys = sorted(
+            {
+                k
+                for s in eval_scans
+                if s["defense"] == name and not s.get("error") and s.get("result")
+                for k in s["result"].get("aux_scores", {})
+            }
+        )
+        for key in keys:
+            alt = model_level(
+                [s for s in eval_scans if s["defense"] == name],
+                score_key=key,
+                calibration=[s for s in calib_scans if s["defense"] == name],
+            ).get(name)
+            if alt:
+                aux_rows.append(
+                    [name, key, _fmt(m[name]["auc"]), _fmt(alt["auc"]), _fmt(alt["tpr_at_5fpr"])]
+                )
+    if aux_rows:
+        lines += [
+            "### What the method measured vs. how it decided",
+            "",
+            "`score` is the statistic each paper defines. Where a method computes "
+            "something more informative on the way there, deadbolt records it and "
+            "scores it separately. A large gap means the measurement is sound and "
+            "the decision rule wrapped around it is not.",
+            "",
+            _table(
+                aux_rows,
+                ["Defense", "Statistic", "AUC (published)", "AUC (this one)", "TPR@5%FPR"],
+            ),
+            "",
+        ]
+
     # The per-attack grid: defenses down, attacks across.
     attacks = sorted({a for _, a in pa})
     defenses = sorted({d for d, _ in pa})

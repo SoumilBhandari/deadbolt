@@ -49,7 +49,9 @@ class ActivationClustering(Detector):
             published value.
         reducer: ``"ica"`` as published, or ``"pca"`` — faster, deterministic,
             and a different method.
-        flag_threshold: Silhouette above which a class is called poisoned.
+        flag_threshold: Silhouette above which a class is called poisoned. The
+            paper describes the criterion but not a number; 0.27 is deadbolt's,
+            calibrated to 5% FPR on the Tier A calibration half.
         max_ratio: A poisoned cluster is a *minority*. If the smaller cluster
             is larger than this fraction of the class, the split is describing
             ordinary within-class structure rather than an implant, and the
@@ -69,7 +71,7 @@ class ActivationClustering(Detector):
         self,
         n_components: int = 10,
         reducer: Reducer = "ica",
-        flag_threshold: float = 0.35,
+        flag_threshold: float = 0.27,
         max_ratio: float = 0.35,
         subsample: int = 2000,
         seed: int = 0,

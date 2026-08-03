@@ -1,0 +1,507 @@
+{
+  "zoo": "tierA",
+  "population": {
+    "n_scans": 540,
+    "n_eval_scans": 270,
+    "n_calibration_scans": 270,
+    "n_errors": 0
+  },
+  "manifest": {
+    "n_models": 102,
+    "n_clean": 51,
+    "n_poisoned": 51,
+    "n_valid_poisoned": 39,
+    "mean_clean_accuracy": 0.9946439628482973,
+    "mean_asr": 0.9964622298444709,
+    "by_attack": {
+      "badnets": {
+        "total": 18,
+        "valid": 18
+      },
+      "badnets/all2all": {
+        "total": 3,
+        "valid": 3
+      },
+      "blended": {
+        "total": 6,
+        "valid": 6
+      },
+      "wanet": {
+        "total": 6,
+        "valid": 6
+      },
+      "sig": {
+        "total": 6,
+        "valid": 0
+      },
+      "label_consistent": {
+        "total": 6,
+        "valid": 0
+      },
+      "adaptive_blend": {
+        "total": 6,
+        "valid": 6
+      }
+    },
+    "filtered": [
+      {
+        "checkpoint": "mnist_sig_s0_b249cbb0b040.pt",
+        "attack": "sig",
+        "poison_rate": 0.05,
+        "reason": "asr 0.055 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_sig_s0_695a3978b3cd.pt",
+        "attack": "sig",
+        "poison_rate": 0.1,
+        "reason": "asr 0.821 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_sig_s1_52b748d59b57.pt",
+        "attack": "sig",
+        "poison_rate": 0.05,
+        "reason": "asr 0.017 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_sig_s1_e2e60301c30f.pt",
+        "attack": "sig",
+        "poison_rate": 0.1,
+        "reason": "asr 0.614 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_sig_s2_66316569ae3e.pt",
+        "attack": "sig",
+        "poison_rate": 0.05,
+        "reason": "asr 0.016 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_sig_s2_34a8606b1d27.pt",
+        "attack": "sig",
+        "poison_rate": 0.1,
+        "reason": "asr 0.611 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_label_consistent_s0_ead7b0e6b066.pt",
+        "attack": "label_consistent",
+        "poison_rate": 0.05,
+        "reason": "asr 0.008 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_label_consistent_s0_43b271136a5d.pt",
+        "attack": "label_consistent",
+        "poison_rate": 0.1,
+        "reason": "asr 0.403 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_label_consistent_s1_8e6097d214cb.pt",
+        "attack": "label_consistent",
+        "poison_rate": 0.05,
+        "reason": "asr 0.007 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_label_consistent_s1_cd0187bbd2c4.pt",
+        "attack": "label_consistent",
+        "poison_rate": 0.1,
+        "reason": "asr 0.042 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_label_consistent_s2_af09fe065ae0.pt",
+        "attack": "label_consistent",
+        "poison_rate": 0.05,
+        "reason": "asr 0.007 < 0.9"
+      },
+      {
+        "checkpoint": "mnist_label_consistent_s2_8740dbebb015.pt",
+        "attack": "label_consistent",
+        "poison_rate": 0.1,
+        "reason": "asr 0.098 < 0.9"
+      }
+    ]
+  },
+  "model_level": {
+    "neural_cleanse": {
+      "n": 45,
+      "n_poisoned": 17,
+      "auc": 0.38865546218487396,
+      "auc_ci95": [
+        0.2202362580834803,
+        0.5748979445874869
+      ],
+      "tpr_at_5fpr": 0.0,
+      "calibrated": true,
+      "tpr": 0.4117647058823529,
+      "fpr": 0.42857142857142855,
+      "median_runtime_s": 21.5888
+    },
+    "karm": {
+      "n": 45,
+      "n_poisoned": 17,
+      "auc": 0.3235294117647059,
+      "auc_ci95": [
+        0.16468253968253968,
+        0.49600079365079364
+      ],
+      "tpr_at_5fpr": 0.058823529411764705,
+      "calibrated": true,
+      "tpr": 0.47058823529411764,
+      "fpr": 0.6428571428571429,
+      "median_runtime_s": 22.032
+    },
+    "strip": {
+      "n": 45,
+      "n_poisoned": 17,
+      "auc": 0.592436974789916,
+      "auc_ci95": [
+        0.3528954248366014,
+        0.8256302521008403
+      ],
+      "tpr_at_5fpr": 0.5882352941176471,
+      "calibrated": true,
+      "tpr": 0.058823529411764705,
+      "fpr": 0.0,
+      "median_runtime_s": 0.4106
+    },
+    "spectral": {
+      "n": 45,
+      "n_poisoned": 17,
+      "auc": 0.6932773109243697,
+      "auc_ci95": [
+        0.4938148148148148,
+        0.8686861350430773
+      ],
+      "tpr_at_5fpr": 0.4117647058823529,
+      "calibrated": true,
+      "tpr": 0.4117647058823529,
+      "fpr": 0.0,
+      "median_runtime_s": 0.588
+    },
+    "spectre": {
+      "n": 45,
+      "n_poisoned": 17,
+      "auc": 0.5462184873949579,
+      "auc_ci95": [
+        0.3534414340448823,
+        0.7449580308529945
+      ],
+      "tpr_at_5fpr": 0.35294117647058826,
+      "calibrated": true,
+      "tpr": 0.35294117647058826,
+      "fpr": 0.03571428571428571,
+      "median_runtime_s": 0.5375
+    },
+    "activation_clustering": {
+      "n": 45,
+      "n_poisoned": 17,
+      "auc": 0.7468487394957983,
+      "auc_ci95": [
+        0.5672444331983807,
+        0.9022420977011494
+      ],
+      "tpr_at_5fpr": 0.5294117647058824,
+      "calibrated": true,
+      "tpr": 0.5294117647058824,
+      "fpr": 0.0,
+      "median_runtime_s": 0.836
+    }
+  },
+  "per_attack": {
+    "activation_clustering|adaptive_blend": {
+      "n_poisoned": 3,
+      "auc": 0.7023809523809523,
+      "tpr_at_5fpr": 0.3333333333333333,
+      "per_sample_auc": 0.8413219176677763,
+      "mask_iou": null,
+      "target_accuracy": 0.3333333333333333
+    },
+    "activation_clustering|badnets": {
+      "n_poisoned": 5,
+      "auc": 0.9214285714285714,
+      "tpr_at_5fpr": 0.8,
+      "per_sample_auc": 0.7384383759306902,
+      "mask_iou": null,
+      "target_accuracy": 0.8
+    },
+    "activation_clustering|badnets/all2all": {
+      "n_poisoned": 3,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.8936001754385966,
+      "mask_iou": null,
+      "target_accuracy": null
+    },
+    "activation_clustering|blended": {
+      "n_poisoned": 3,
+      "auc": 0.6666666666666666,
+      "tpr_at_5fpr": 0.3333333333333333,
+      "per_sample_auc": 0.9857894736842105,
+      "mask_iou": null,
+      "target_accuracy": 0.6666666666666666
+    },
+    "activation_clustering|wanet": {
+      "n_poisoned": 3,
+      "auc": 0.3273809523809524,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": 0.5713078933333333,
+      "mask_iou": null,
+      "target_accuracy": 0.6666666666666666
+    },
+    "karm|adaptive_blend": {
+      "n_poisoned": 3,
+      "auc": 0.25,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": null,
+      "target_accuracy": 1.0
+    },
+    "karm|badnets": {
+      "n_poisoned": 5,
+      "auc": 0.4857142857142857,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": 0.2226884226884227,
+      "target_accuracy": 1.0
+    },
+    "karm|badnets/all2all": {
+      "n_poisoned": 3,
+      "auc": 0.30952380952380953,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": 0.025679012345679014,
+      "target_accuracy": null
+    },
+    "karm|blended": {
+      "n_poisoned": 3,
+      "auc": 0.16666666666666666,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": null,
+      "target_accuracy": 1.0
+    },
+    "karm|wanet": {
+      "n_poisoned": 3,
+      "auc": 0.2976190476190476,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": null,
+      "target_accuracy": 1.0
+    },
+    "neural_cleanse|adaptive_blend": {
+      "n_poisoned": 3,
+      "auc": 0.36904761904761907,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": null,
+      "target_accuracy": 1.0
+    },
+    "neural_cleanse|badnets": {
+      "n_poisoned": 5,
+      "auc": 0.6428571428571429,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": 0.1538239538239538,
+      "target_accuracy": 1.0
+    },
+    "neural_cleanse|badnets/all2all": {
+      "n_poisoned": 3,
+      "auc": 0.27380952380952384,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": 0.025641025641025644,
+      "target_accuracy": null
+    },
+    "neural_cleanse|blended": {
+      "n_poisoned": 3,
+      "auc": 0.13095238095238096,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": null,
+      "target_accuracy": 1.0
+    },
+    "neural_cleanse|wanet": {
+      "n_poisoned": 3,
+      "auc": 0.35714285714285715,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": null,
+      "target_accuracy": 1.0
+    },
+    "spectral|adaptive_blend": {
+      "n_poisoned": 3,
+      "auc": 0.9523809523809523,
+      "tpr_at_5fpr": 0.3333333333333333,
+      "per_sample_auc": 0.8274321313986587,
+      "mask_iou": null,
+      "target_accuracy": 0.0
+    },
+    "spectral|badnets": {
+      "n_poisoned": 5,
+      "auc": 0.7,
+      "tpr_at_5fpr": 0.6,
+      "per_sample_auc": 0.9103171171530166,
+      "mask_iou": null,
+      "target_accuracy": 0.6
+    },
+    "spectral|badnets/all2all": {
+      "n_poisoned": 3,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.9999459649122807,
+      "mask_iou": null,
+      "target_accuracy": null
+    },
+    "spectral|blended": {
+      "n_poisoned": 3,
+      "auc": 0.7380952380952381,
+      "tpr_at_5fpr": 0.3333333333333333,
+      "per_sample_auc": 0.7828569505582138,
+      "mask_iou": null,
+      "target_accuracy": 0.3333333333333333
+    },
+    "spectral|wanet": {
+      "n_poisoned": 3,
+      "auc": 0.07142857142857142,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": 0.5387538555555557,
+      "mask_iou": null,
+      "target_accuracy": 0.0
+    },
+    "spectre|adaptive_blend": {
+      "n_poisoned": 3,
+      "auc": 0.8095238095238095,
+      "tpr_at_5fpr": 0.6666666666666666,
+      "per_sample_auc": 0.7790677938196554,
+      "mask_iou": null,
+      "target_accuracy": 0.0
+    },
+    "spectre|badnets": {
+      "n_poisoned": 5,
+      "auc": 0.5285714285714286,
+      "tpr_at_5fpr": 0.2,
+      "per_sample_auc": 0.8909088378928134,
+      "mask_iou": null,
+      "target_accuracy": 0.2
+    },
+    "spectre|badnets/all2all": {
+      "n_poisoned": 3,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.9669285614035088,
+      "mask_iou": null,
+      "target_accuracy": null
+    },
+    "spectre|blended": {
+      "n_poisoned": 3,
+      "auc": 0.2261904761904762,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": 0.5619827481835903,
+      "mask_iou": null,
+      "target_accuracy": 0.0
+    },
+    "spectre|wanet": {
+      "n_poisoned": 3,
+      "auc": 0.17857142857142858,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": 0.6274196761904762,
+      "mask_iou": null,
+      "target_accuracy": 0.0
+    },
+    "strip|adaptive_blend": {
+      "n_poisoned": 3,
+      "auc": 0.6785714285714286,
+      "tpr_at_5fpr": 0.6666666666666666,
+      "per_sample_auc": 0.7959946666666666,
+      "mask_iou": null,
+      "target_accuracy": null
+    },
+    "strip|badnets": {
+      "n_poisoned": 5,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.99842,
+      "mask_iou": null,
+      "target_accuracy": null
+    },
+    "strip|badnets/all2all": {
+      "n_poisoned": 3,
+      "auc": 0.0,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": 0.12070133333333333,
+      "mask_iou": null,
+      "target_accuracy": null
+    },
+    "strip|blended": {
+      "n_poisoned": 3,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.9817546666666667,
+      "mask_iou": null,
+      "target_accuracy": null
+    },
+    "strip|wanet": {
+      "n_poisoned": 3,
+      "auc": 0.011904761904761904,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": 0.3903893333333333,
+      "mask_iou": null,
+      "target_accuracy": null
+    }
+  },
+  "aux": {
+    "karm|min_l1": {
+      "n": 45,
+      "n_poisoned": 17,
+      "auc": 0.9243697478991597,
+      "auc_ci95": [
+        0.8189459247648904,
+        0.9942948815889993
+      ],
+      "tpr_at_5fpr": 0.7647058823529411,
+      "calibrated": true,
+      "tpr": 0.47058823529411764,
+      "fpr": 0.6428571428571429,
+      "median_runtime_s": 22.032
+    },
+    "karm|norm_ratio": {
+      "n": 45,
+      "n_poisoned": 17,
+      "auc": 0.5714285714285714,
+      "auc_ci95": [
+        0.3570105820105823,
+        0.7880196184407654
+      ],
+      "tpr_at_5fpr": 0.4117647058823529,
+      "calibrated": true,
+      "tpr": 0.47058823529411764,
+      "fpr": 0.6428571428571429,
+      "median_runtime_s": 22.032
+    },
+    "neural_cleanse|min_l1": {
+      "n": 45,
+      "n_poisoned": 17,
+      "auc": 0.9264705882352942,
+      "auc_ci95": [
+        0.8117350668337511,
+        0.9979002403430508
+      ],
+      "tpr_at_5fpr": 0.7647058823529411,
+      "calibrated": true,
+      "tpr": 0.4117647058823529,
+      "fpr": 0.42857142857142855,
+      "median_runtime_s": 21.5888
+    },
+    "neural_cleanse|norm_ratio": {
+      "n": 45,
+      "n_poisoned": 17,
+      "auc": 0.5735294117647058,
+      "auc_ci95": [
+        0.3621747638326587,
+        0.7860729166666666
+      ],
+      "tpr_at_5fpr": 0.47058823529411764,
+      "calibrated": true,
+      "tpr": 0.4117647058823529,
+      "fpr": 0.42857142857142855,
+      "median_runtime_s": 21.5888
+    }
+  }
+}
