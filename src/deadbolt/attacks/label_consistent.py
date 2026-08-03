@@ -156,7 +156,7 @@ class LabelConsistent(Trigger):
             raise ValueError(f"expected (B, C, H, W), got shape {tuple(x.shape)}")
         return self._stamp(x)
 
-    def apply_train(self, x: Tensor) -> Tensor:
+    def apply_train(self, x: Tensor, index: int | None = None) -> Tensor:
         """Poisoning form: adversarial perturbation, then the patch."""
         if x.ndim != 4:
             raise ValueError(f"expected (B, C, H, W), got shape {tuple(x.shape)}")

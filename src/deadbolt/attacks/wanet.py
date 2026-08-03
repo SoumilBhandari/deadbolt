@@ -83,10 +83,13 @@ class WaNet(Trigger):
         self.seed = seed
         self.default_cover_rate = noise_rate
         self._grid_cache: dict[tuple, Tensor] = {}
-        # A dedicated generator, so drawing the per-sample noise for cover
-        # samples does not perturb the global RNG stream and silently change
-        # which images the *rest* of the pipeline selects.
-        self._rng = torch.Generator(device="cpu").manual_seed(seed + 1)
+        # Per-sample jitter is keyed on the dataset index (see
+        # Trigger.sample_generator), not drawn from a running stream: otherwise
+        # the pixels a cover sample receives depend on the order it was read in,
+        # and training (shuffled) reads in a different order than scanning
+        # (sequential).
+        self._seed_base = seed + 1
+        self._stream = torch.Generator(device="cpu").manual_seed(seed + 1)
 
     def _grid(self, x: Tensor) -> Tensor:
         """Dense sampling grid ``(1, H, W, 2)`` for this input size."""
@@ -128,20 +131,22 @@ class WaNet(Trigger):
             raise ValueError(f"expected (B, C, H, W), got shape {tuple(x.shape)}")
         return self._warp(x, self._grid(x).expand(x.shape[0], -1, -1, -1))
 
-    def apply_cover(self, x: Tensor) -> Tensor:
-        """Noise mode: the same warp plus a fresh random jitter, label kept.
+    def apply_cover(self, x: Tensor, index: int | None = None) -> Tensor:
+        """Noise mode: the same warp plus a random jitter, label kept.
 
-        The jitter is drawn per call rather than fixed, which is the point —
-        the network must see many *different* warps that do not mean the target
-        class, so that only the one exact field does.
+        The jitter differs from sample to sample, which is the point — the
+        network must see many *different* warps that do not mean the target
+        class, so that only the one exact field does. It is keyed on the
+        dataset index rather than drawn from a running stream, so a given
+        sample gets the same jitter at training time, at scan time, and on a
+        re-run. See :meth:`Trigger.sample_generator`.
         """
         if x.ndim != 4:
             raise ValueError(f"expected (B, C, H, W), got shape {tuple(x.shape)}")
         b, _, h, w = x.shape
         grid = self._grid(x).expand(b, -1, -1, -1)
-        jitter = (torch.rand(b, h, w, 2, generator=self._rng) * 2 - 1).to(
-            device=x.device, dtype=x.dtype
-        )
+        gen = self.sample_generator(index)
+        jitter = (torch.rand(b, h, w, 2, generator=gen) * 2 - 1).to(device=x.device, dtype=x.dtype)
         scale = torch.tensor([2.0 / w, 2.0 / h], device=x.device, dtype=x.dtype)
         return self._warp(x, (grid + jitter * scale).clamp(-1, 1))
 

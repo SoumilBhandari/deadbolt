@@ -225,3 +225,49 @@ def test_badnets_patch_position_is_configurable():
     for corner, cell in (("br", (-1, -1)), ("tl", (0, 0))):
         mask = BadNets(10, patch_size=2, margin=0, corner=corner).ground_truth_mask((8, 8))
         assert mask[0, cell[0], cell[1]] == 1.0
+
+
+@pytest.mark.parametrize("name", ["wanet", "adaptive_blend"])
+def test_per_sample_randomness_is_keyed_on_index_not_access_order(name):
+    """The pixels a sample receives must not depend on the order it was read in.
+
+    WaNet's noise-mode jitter and Adaptive-Blend's piece mask both vary per
+    sample — that variation *is* the evasion mechanism. Drawing it from a
+    running RNG stream makes it a function of read order instead, and the two
+    places that matter read in different orders: training shuffles its
+    DataLoader, scanning does not. A data-side defense would then be scored on
+    cover images the victim never trained on.
+    """
+    trigger = make(name)
+    x = torch.rand(1, 3, 16, 16)
+    fn = trigger.apply_cover if name == "wanet" else trigger.apply_train
+
+    forwards = {i: fn(x, i).clone() for i in (3, 7, 11)}
+    backwards = {i: fn(x, i).clone() for i in (11, 7, 3)}
+    assert all(torch.equal(forwards[i], backwards[i]) for i in forwards)
+
+
+@pytest.mark.parametrize("name", ["wanet", "adaptive_blend"])
+def test_per_sample_randomness_survives_rebuilding_the_trigger(name):
+    """Scan time constructs a fresh Trigger from the manifest config.
+
+    If the per-sample draw depended on instance state accumulated since
+    construction, the reconstructed poisoned dataset would differ from the one
+    the model trained on — silently, and only for the two attacks whose whole
+    point is that they are hard to detect.
+    """
+    x = torch.rand(1, 3, 16, 16)
+    a, b = make(name), make(name)
+    fa = a.apply_cover if name == "wanet" else a.apply_train
+    fb = b.apply_cover if name == "wanet" else b.apply_train
+    for i in (0, 5, 99):
+        assert torch.equal(fa(x, i), fb(x, i))
+
+
+@pytest.mark.parametrize("name", ["wanet", "adaptive_blend"])
+def test_per_sample_randomness_still_varies_between_samples(name):
+    """Determinism must not collapse the variation the attack depends on."""
+    trigger = make(name)
+    x = torch.rand(1, 3, 16, 16)
+    fn = trigger.apply_cover if name == "wanet" else trigger.apply_train
+    assert not torch.equal(fn(x, 0), fn(x, 1))

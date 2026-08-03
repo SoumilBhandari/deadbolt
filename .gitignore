@@ -25,3 +25,8 @@ scratch/
 
 # OS
 .DS_Store
+
+# Coverage artefacts
+.coverage
+coverage.xml
+htmlcov/

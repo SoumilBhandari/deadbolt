@@ -266,8 +266,11 @@ class PoisonedDataset(Dataset):
         else:
             # apply_* takes a batch; unsqueeze and squeeze around it so triggers
             # only ever implement the batched path.
+            # The index is passed so per-sample randomness is a property of the
+            # sample rather than of the read order — see
+            # Trigger.sample_generator.
             fn = self.trigger.apply_train if is_payload else self.trigger.apply_cover
-            x = fn(x.unsqueeze(0)).squeeze(0)
+            x = fn(x.unsqueeze(0), index).squeeze(0)
             if self._cache is not None:
                 self._cache[index] = x
 

@@ -87,6 +87,11 @@ class Trigger(ABC):
         self.num_classes = num_classes
         self.target_label = target_label
         self.label_mode: LabelMode = label_mode
+        # Per-attack RNG state for sample_generator(). Subclasses that take a
+        # `seed` override _seed_base so the same config reproduces the same
+        # per-sample randomness.
+        self._seed_base = 0
+        self._stream = torch.Generator(device="cpu").manual_seed(0)
 
     @abstractmethod
     def apply(self, x: Tensor) -> Tensor:
@@ -101,22 +106,52 @@ class Trigger(ABC):
             clean batch to build the clean-accuracy view.
         """
 
-    def apply_train(self, x: Tensor) -> Tensor:
+    def apply_train(self, x: Tensor, index: int | None = None) -> Tensor:
         """Training-time form of the trigger. Defaults to the deployment form.
 
         Override only for asymmetric attacks, where the gap between what the
         network is taught and what it is later shown is the evasion mechanism.
+
+        Args:
+            index: Dataset index of this sample. Attacks whose training-time
+                form is *randomised per sample* must derive that randomness
+                from it — see :meth:`sample_generator`.
         """
         return self.apply(x)
 
-    def apply_cover(self, x: Tensor) -> Tensor:
+    def apply_cover(self, x: Tensor, index: int | None = None) -> Tensor:
         """Form stamped on cover samples, whose labels stay correct.
 
         Defaults to :meth:`apply_train`, which is right for Adaptive-Blend.
         WaNet overrides it: its cover samples get a random warp rather than the
         learned one, teaching the network that warping alone is not the signal.
         """
-        return self.apply_train(x)
+        return self.apply_train(x, index)
+
+    def sample_generator(self, index: int | None) -> torch.Generator:
+        """RNG for per-sample randomness, keyed on the sample's dataset index.
+
+        Two of these attacks randomise what they stamp *per sample* — WaNet's
+        noise-mode jitter, Adaptive-Blend's piece mask — and that variation is
+        the evasion mechanism, so it cannot simply be removed. But drawing it
+        from a single running stream makes the pixels a sample receives depend
+        on the *order* it was accessed in, and the two places that matter access
+        in different orders: training shuffles, scanning does not.
+
+        The consequence is subtle and bad. A data-side defense would be scored
+        on cover images the victim never trained on, and the same scan repeated
+        with a different batch size would produce different data. Keying the
+        generator on the index makes each sample's randomness a property of the
+        sample, so it is identical at training time, at scan time, and on any
+        re-run — while still differing between samples, which is what the attack
+        needs.
+
+        ``index=None`` (an ad-hoc batch, not a dataset read) falls back to a
+        fresh draw from the attack's own stream.
+        """
+        if index is None:
+            return self._stream
+        return torch.Generator(device="cpu").manual_seed(self._seed_base + int(index))
 
     def prepare(self, surrogate: Any, device: Any) -> None:
         """Give a :attr:`requires_surrogate` attack the clean model it needs.

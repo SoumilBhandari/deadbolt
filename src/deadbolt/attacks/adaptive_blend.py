@@ -85,7 +85,11 @@ class AdaptiveBlend(Trigger):
         self.pattern_seed = pattern_seed
         self.default_cover_rate = cover_rate
         self._cache: dict[tuple, Tensor] = {}
-        self._rng = torch.Generator(device="cpu").manual_seed(pattern_seed + 1)
+        # Keyed on dataset index, not a running stream — see
+        # Trigger.sample_generator for why order-dependence is a correctness bug
+        # rather than a cosmetic one.
+        self._seed_base = pattern_seed + 1
+        self._stream = torch.Generator(device="cpu").manual_seed(pattern_seed + 1)
 
     def _pattern_for(self, x: Tensor) -> Tensor:
         key = (x.shape[1], x.shape[2], x.shape[3], x.device, x.dtype)
@@ -100,19 +104,23 @@ class AdaptiveBlend(Trigger):
             )
         return self._cache[key]
 
-    def _piece_mask(self, x: Tensor) -> Tensor:
+    def _piece_mask(self, x: Tensor, index: int | None = None) -> Tensor:
         """Per-sample ``(B, 1, H, W)`` mask selecting ``train_pieces`` pieces.
 
-        Drawn fresh per call: the variation across poisoned samples is the
-        mechanism, not an implementation convenience. Caching one mask would
-        turn this back into an ordinary blend with a fixed hole pattern, which
-        the latent-statistics defenses catch easily.
+        Varies across samples: that variation is the mechanism, not an
+        implementation convenience. Caching one mask would turn this back into
+        an ordinary blend with a fixed hole pattern, which the latent-statistics
+        defenses catch easily. Keyed on the dataset index so it is stable across
+        access orders — see :meth:`Trigger.sample_generator`.
         """
         b, _, h, w = x.shape
         g = self.grid
         n = g * g
         # Random permutation per sample, then keep the first `train_pieces`.
-        keep = torch.rand(b, n, generator=self._rng).argsort(dim=1) < self.train_pieces
+        keep = (
+            torch.rand(b, n, generator=self.sample_generator(index)).argsort(dim=1)
+            < self.train_pieces
+        )
         cells = keep.view(b, 1, g, g).to(x.dtype)
         # nearest-neighbour upsample so piece boundaries stay hard; a smooth
         # interpolation would leak a fractional trigger everywhere and defeat
@@ -126,13 +134,13 @@ class AdaptiveBlend(Trigger):
             raise ValueError(f"expected (B, C, H, W), got shape {tuple(x.shape)}")
         return torch.lerp(x, self._pattern_for(x).expand_as(x), self.alpha)
 
-    def apply_train(self, x: Tensor) -> Tensor:
-        """Training-time form: a random subset of pieces, at ``train_alpha``."""
+    def apply_train(self, x: Tensor, index: int | None = None) -> Tensor:
+        """Training-time form: a subset of pieces, at ``train_alpha``."""
         if x.ndim != 4:
             raise ValueError(f"expected (B, C, H, W), got shape {tuple(x.shape)}")
         pat = self._pattern_for(x).expand_as(x)
         blended = torch.lerp(x, pat, self.train_alpha)
-        mask = self._piece_mask(x)
+        mask = self._piece_mask(x, index)
         return x * (1 - mask) + blended * mask
 
     def ground_truth_mask(self, image_size: tuple[int, int]) -> None:

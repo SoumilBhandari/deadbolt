@@ -1,0 +1,274 @@
+{
+  "zoo": "smokecliaudit",
+  "population": {
+    "n_scans": 36,
+    "n_eval_scans": 18,
+    "n_calibration_scans": 18,
+    "n_errors": 0
+  },
+  "manifest": {
+    "n_models": 6,
+    "n_clean": 3,
+    "n_poisoned": 3,
+    "n_valid_poisoned": 3,
+    "mean_clean_accuracy": 0.9905102040816326,
+    "mean_asr": 0.9988310708898944,
+    "by_attack": {
+      "badnets": {
+        "total": 1,
+        "valid": 1
+      },
+      "wanet": {
+        "total": 1,
+        "valid": 1
+      },
+      "adaptive_blend": {
+        "total": 1,
+        "valid": 1
+      }
+    },
+    "filtered": []
+  },
+  "model_level": {
+    "neural_cleanse": {
+      "n": 3,
+      "n_poisoned": 2,
+      "auc": 0.5,
+      "auc_ci95": [
+        0.0,
+        1.0
+      ],
+      "tpr_at_5fpr": 0.5,
+      "calibrated": false,
+      "tpr": 0.5,
+      "fpr": 0.0,
+      "median_runtime_s": 9.2047
+    },
+    "karm": {
+      "n": 3,
+      "n_poisoned": 2,
+      "auc": 1.0,
+      "auc_ci95": [
+        1.0,
+        1.0
+      ],
+      "tpr_at_5fpr": 1.0,
+      "calibrated": false,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "median_runtime_s": 9.7938
+    },
+    "strip": {
+      "n": 3,
+      "n_poisoned": 2,
+      "auc": 1.0,
+      "auc_ci95": [
+        1.0,
+        1.0
+      ],
+      "tpr_at_5fpr": 1.0,
+      "calibrated": false,
+      "tpr": 0.0,
+      "fpr": 0.0,
+      "median_runtime_s": 0.9702
+    },
+    "spectral": {
+      "n": 3,
+      "n_poisoned": 2,
+      "auc": 1.0,
+      "auc_ci95": [
+        1.0,
+        1.0
+      ],
+      "tpr_at_5fpr": 1.0,
+      "calibrated": false,
+      "tpr": 1.0,
+      "fpr": 0.0,
+      "median_runtime_s": 1.6553
+    },
+    "spectre": {
+      "n": 3,
+      "n_poisoned": 2,
+      "auc": 0.5,
+      "auc_ci95": [
+        0.0,
+        1.0
+      ],
+      "tpr_at_5fpr": 0.5,
+      "calibrated": false,
+      "tpr": 0.5,
+      "fpr": 0.0,
+      "median_runtime_s": 1.4878
+    },
+    "activation_clustering": {
+      "n": 3,
+      "n_poisoned": 2,
+      "auc": 1.0,
+      "auc_ci95": [
+        1.0,
+        1.0
+      ],
+      "tpr_at_5fpr": 1.0,
+      "calibrated": false,
+      "tpr": 1.0,
+      "fpr": 0.0,
+      "median_runtime_s": 12.6842
+    }
+  },
+  "per_attack": {
+    "activation_clustering|adaptive_blend": {
+      "n_poisoned": 1,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.9245058510638298,
+      "mask_iou": null,
+      "target_accuracy": 0.0
+    },
+    "activation_clustering|badnets": {
+      "n_poisoned": 1,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 1.0,
+      "mask_iou": null,
+      "target_accuracy": 1.0
+    },
+    "karm|adaptive_blend": {
+      "n_poisoned": 1,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": null,
+      "mask_iou": null,
+      "target_accuracy": 1.0
+    },
+    "karm|badnets": {
+      "n_poisoned": 1,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": null,
+      "mask_iou": 0.0,
+      "target_accuracy": 0.0
+    },
+    "neural_cleanse|adaptive_blend": {
+      "n_poisoned": 1,
+      "auc": 0.0,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": null,
+      "mask_iou": null,
+      "target_accuracy": 1.0
+    },
+    "neural_cleanse|badnets": {
+      "n_poisoned": 1,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": null,
+      "mask_iou": 0.0,
+      "target_accuracy": 0.0
+    },
+    "spectral|adaptive_blend": {
+      "n_poisoned": 1,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.7441734929078014,
+      "mask_iou": null,
+      "target_accuracy": 0.0
+    },
+    "spectral|badnets": {
+      "n_poisoned": 1,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.9983323232323232,
+      "mask_iou": null,
+      "target_accuracy": 1.0
+    },
+    "spectre|adaptive_blend": {
+      "n_poisoned": 1,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.734625975177305,
+      "mask_iou": null,
+      "target_accuracy": 0.0
+    },
+    "spectre|badnets": {
+      "n_poisoned": 1,
+      "auc": 0.0,
+      "tpr_at_5fpr": 0.0,
+      "per_sample_auc": 0.9427313131313131,
+      "mask_iou": null,
+      "target_accuracy": 0.0
+    },
+    "strip|adaptive_blend": {
+      "n_poisoned": 1,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.949888,
+      "mask_iou": null,
+      "target_accuracy": null
+    },
+    "strip|badnets": {
+      "n_poisoned": 1,
+      "auc": 1.0,
+      "tpr_at_5fpr": 1.0,
+      "per_sample_auc": 0.993424,
+      "mask_iou": null,
+      "target_accuracy": null
+    }
+  },
+  "aux": {
+    "karm|min_l1": {
+      "n": 3,
+      "n_poisoned": 2,
+      "auc": 1.0,
+      "auc_ci95": [
+        1.0,
+        1.0
+      ],
+      "tpr_at_5fpr": 1.0,
+      "calibrated": false,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "median_runtime_s": 9.7938
+    },
+    "karm|norm_ratio": {
+      "n": 3,
+      "n_poisoned": 2,
+      "auc": 1.0,
+      "auc_ci95": [
+        1.0,
+        1.0
+      ],
+      "tpr_at_5fpr": 1.0,
+      "calibrated": false,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "median_runtime_s": 9.7938
+    },
+    "neural_cleanse|min_l1": {
+      "n": 3,
+      "n_poisoned": 2,
+      "auc": 1.0,
+      "auc_ci95": [
+        1.0,
+        1.0
+      ],
+      "tpr_at_5fpr": 1.0,
+      "calibrated": false,
+      "tpr": 0.5,
+      "fpr": 0.0,
+      "median_runtime_s": 9.2047
+    },
+    "neural_cleanse|norm_ratio": {
+      "n": 3,
+      "n_poisoned": 2,
+      "auc": 1.0,
+      "auc_ci95": [
+        1.0,
+        1.0
+      ],
+      "tpr_at_5fpr": 1.0,
+      "calibrated": false,
+      "tpr": 0.5,
+      "fpr": 0.0,
+      "median_runtime_s": 9.2047
+    }
+  }
+}
