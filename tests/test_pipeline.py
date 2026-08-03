@@ -171,12 +171,10 @@ def test_dirty_label_selection_skips_the_target_class(labels):
     assert (labels[plan.payload] == 4).sum() == 0
 
 
-def test_cover_samples_keep_their_labels(labels):
+def test_cover_samples_keep_their_labels(labels, make_toy):
     trigger = AdaptiveBlend(10, target_label=0, cover_rate=0.05)
     plan = plan_poisoning(labels, 0.02, "dirty_label", trigger, 0)
-    from tests.conftest import ToyDataset
-
-    toy = ToyDataset(n=1000)
+    toy = make_toy(n=1000)
     ds = PoisonedDataset(toy, trigger, plan.payload, relabel=True, cover_indices=plan.cover)
     for i in plan.cover[:20]:
         _, y = ds[int(i)]
@@ -186,14 +184,12 @@ def test_cover_samples_keep_their_labels(labels):
         assert y == 0
 
 
-def test_cover_samples_count_as_poisoned_for_scoring(labels):
+def test_cover_samples_count_as_poisoned_for_scoring(labels, make_toy):
     """They carry the trigger. A filter that misses them has missed poisoned data."""
     trigger = AdaptiveBlend(10, cover_rate=0.05)
     plan = plan_poisoning(labels, 0.02, "dirty_label", trigger, 0)
-    from tests.conftest import ToyDataset
-
     ds = PoisonedDataset(
-        ToyDataset(n=1000), trigger, plan.payload, relabel=True, cover_indices=plan.cover
+        make_toy(n=1000), trigger, plan.payload, relabel=True, cover_indices=plan.cover
     )
     assert ds.poison_mask.sum() == len(plan.payload) + len(plan.cover)
     assert all(ds.is_poisoned(int(i)) for i in plan.cover)
@@ -533,3 +529,24 @@ def test_stealth_filter_never_clears_an_asr_rejection():
     )
     apply_stealth_filter([r])
     assert not r.valid_testcase and r.filter_reason.startswith("asr")
+
+
+def test_no_test_module_imports_from_the_tests_package():
+    """`from tests.conftest import ...` works only when the repository root is
+    on sys.path, which is true in some local setups and was not true on CI.
+
+    That single import turned CI red from the very first push while every local
+    run stayed green — the worst possible failure mode for a guard, since it
+    means the guard is not guarding. Shared helpers belong in fixtures, which
+    are the mechanism pytest actually guarantees.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent
+    offenders = [
+        f"{p.name}:{i}"
+        for p in sorted(root.glob("test_*.py"))
+        for i, line in enumerate(p.read_text().splitlines(), 1)
+        if line.lstrip().startswith(("from tests.", "import tests."))
+    ]
+    assert not offenders, f"use a fixture instead of importing across test modules: {offenders}"

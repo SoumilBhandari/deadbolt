@@ -44,6 +44,19 @@ def toy() -> ToyDataset:
 
 
 @pytest.fixture
+def make_toy():
+    """Factory for toy datasets of arbitrary size.
+
+    A fixture rather than a cross-module ``from tests.conftest import ...``.
+    That import works only when the repository root happens to be on
+    ``sys.path``, which is true in some local setups and was not true on CI —
+    where it turned every test that used it red from the first push. Fixtures
+    are the mechanism pytest actually guarantees.
+    """
+    return ToyDataset
+
+
+@pytest.fixture
 def toy_loader(toy: ToyDataset) -> DataLoader:
     return DataLoader(toy, batch_size=16, shuffle=False)
 

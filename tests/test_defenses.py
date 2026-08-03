@@ -208,11 +208,9 @@ def test_features_come_back_on_cpu_in_float64(tiny_model, toy_loader, cpu):
     assert len(feats) == len(labels) == len(toy_loader.dataset)
 
 
-def test_features_preserve_dataset_order(tiny_model, cpu):
+def test_features_preserve_dataset_order(tiny_model, cpu, make_toy):
     """Per-sample scores are matched to the poison mask by position."""
-    from tests.conftest import ToyDataset
-
-    ds = ToyDataset(n=64)
+    ds = make_toy(n=64)
     _, labels = penultimate_features(tiny_model, DataLoader(ds, batch_size=8, shuffle=False), cpu)
     assert torch.equal(labels, torch.tensor(ds.labels))
 
