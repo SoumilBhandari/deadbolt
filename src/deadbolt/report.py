@@ -547,6 +547,29 @@ def _blind_spot_section(pa: dict[tuple[str, str], dict]) -> str:
     )
 
 
+def load_mitigations(zoo: str, history: bool = False) -> list[dict]:
+    """Read repair records, latest-wins per checkpoint.
+
+    Same rule as :func:`deadbolt.scan.load_scans`, for the same reason: a model
+    that was retrained, or a mitigation re-run with different hyperparameters,
+    must supersede its old row rather than be averaged with it. Without this a
+    repair pass silently double-counts every model it touches, and the averages
+    drift towards whichever run happened more often.
+    """
+    from deadbolt.config import zoo_dir
+
+    path = zoo_dir(zoo) / "mitigations.jsonl"
+    if not path.exists():
+        return []
+    rows = [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
+    if history:
+        return rows
+    latest: dict[str, dict] = {}
+    for r in rows:
+        latest[r["checkpoint"]] = r
+    return list(latest.values())
+
+
 def _mitigation_section(zoo: str) -> str:
     """Repair results, kept on a separate scoreboard from detection.
 
@@ -555,12 +578,8 @@ def _mitigation_section(zoo: str) -> str:
     accuracy, and a method that drives ASR to zero by destroying the model has
     defended nothing. Both columns, always, side by side.
     """
-    from deadbolt.config import zoo_dir
 
-    path = zoo_dir(zoo) / "mitigations.jsonl"
-    if not path.exists():
-        return ""
-    rows_raw = [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
+    rows_raw = load_mitigations(zoo)
     if not rows_raw:
         return ""
 

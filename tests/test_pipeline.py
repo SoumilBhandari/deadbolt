@@ -550,3 +550,32 @@ def test_no_test_module_imports_from_the_tests_package():
         if line.lstrip().startswith(("from tests.", "import tests."))
     ]
     assert not offenders, f"use a fixture instead of importing across test modules: {offenders}"
+
+
+def test_mitigations_are_read_latest_wins(tmp_path, monkeypatch):
+    """A retrained model's repair record must supersede, not average with, its old one.
+
+    mitigations.jsonl is append-only like the scan log. Without a latest-wins
+    read, a repair pass double-counts every model it touches and the averages
+    drift towards whichever run happened more often — silently, since both rows
+    are individually valid.
+    """
+    import json as _json
+
+    from deadbolt.report import load_mitigations
+
+    monkeypatch.setenv("DEADBOLT_ROOT", str(tmp_path))
+    from deadbolt.config import zoo_dir
+
+    path = zoo_dir("m") / "mitigations.jsonl"
+    rows = [
+        {"checkpoint": "a.pt", "attack": "badnets", "asr_after": 0.9},
+        {"checkpoint": "b.pt", "attack": "badnets", "asr_after": 0.5},
+        {"checkpoint": "a.pt", "attack": "badnets", "asr_after": 0.1},  # rerun of a
+    ]
+    path.write_text("".join(_json.dumps(r) + "\n" for r in rows))
+
+    current = load_mitigations("m")
+    assert len(current) == 2, "each model counted once"
+    assert {r["checkpoint"]: r["asr_after"] for r in current} == {"a.pt": 0.1, "b.pt": 0.5}
+    assert len(load_mitigations("m", history=True)) == 3, "superseded rows stay on disk"

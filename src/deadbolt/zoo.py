@@ -199,17 +199,20 @@ def build(
     out_dir = zoo_dir(spec.name)
     done = {r.config_hash for r in load_manifest(spec.name)} if resume else set()
 
-    trained = 0
-    for i, cfg in enumerate(configs):
-        if config_hash(asdict(cfg)) in done:
-            continue
-        if limit is not None and trained >= limit:
-            break
+    # Progress is reported over the models that will actually be trained, not
+    # over the whole config list. On a resumed build most configs are skipped,
+    # and counting them makes the ETA wrong by the ratio of skipped to new —
+    # a repair run that rebuilds 12 of 102 models reported "eta 2.2h" for four
+    # minutes of work.
+    todo = [c for c in configs if config_hash(asdict(c)) not in done]
+    if limit is not None:
+        todo = todo[:limit]
+
+    for i, cfg in enumerate(todo):
         result = train_one(cfg, out_dir)
         _append(spec.name, result)
-        trained += 1
         if on_model is not None:
-            on_model(i, len(configs), cfg, result)
+            on_model(i, len(todo), cfg, result)
 
     records = load_manifest(spec.name)
     apply_stealth_filter(records)

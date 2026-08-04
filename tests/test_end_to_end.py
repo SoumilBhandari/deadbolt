@@ -259,3 +259,42 @@ def test_scan_log_is_append_only_but_reads_latest_wins(toy_dataset, tmp_path):
         "the surviving row must be the re-scan, not the original"
     )
     assert all(s["defense_config"]["flag_threshold"] == 1e9 for s in current)
+
+
+def test_build_progress_counts_only_models_it_will_train(toy_dataset, tmp_path):
+    """A resumed build must not report progress against the full config list.
+
+    Counting skipped models makes the ETA wrong by the ratio of skipped to new:
+    a repair run rebuilding 12 of 102 models reported "eta 2.2h" for four
+    minutes of work, which is the kind of number that makes someone kill a job
+    that was nearly done.
+    """
+    from deadbolt import zoo as zoo_mod
+
+    spec = ZooSpec(
+        name="progress",
+        dataset="toy",
+        arch="smallcnn",
+        width=4,
+        epochs=1,
+        batch_size=32,
+        augment=False,
+        defender_per_class=8,
+        seeds=[0],
+        clean_count=2,
+        attacks=[AttackSweep(attack="badnets", poison_rates=[0.4], targets=[0])],
+    )
+    seen: list[tuple[int, int]] = []
+    zoo_mod.build(spec, on_model=lambda i, total, cfg, r: seen.append((i, total)))
+    assert seen == [(0, 3), (1, 3), (2, 3)], seen
+
+    # Resume: nothing left to do, so nothing is reported.
+    seen.clear()
+    zoo_mod.build(spec, on_model=lambda i, total, cfg, r: seen.append((i, total)))
+    assert seen == []
+
+    # A spec with one new model reports it as 1-of-1, not 1-of-4.
+    spec.clean_count = 3
+    seen.clear()
+    zoo_mod.build(spec, on_model=lambda i, total, cfg, r: seen.append((i, total)))
+    assert seen == [(0, 1)], seen
