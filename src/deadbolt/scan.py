@@ -116,6 +116,17 @@ def artefacts(
     cfg = TrainConfig(**record.config)
     spec = SPECS[cfg.dataset]
     model = load_model(record.checkpoint, device)
+    # Detectors inspect weights; they never train them. Handing over a model
+    # whose parameters still require grad means any detector that does not
+    # think to disable it builds an autograd graph it never uses — wasted
+    # memory, and a confusing warning the first time someone calls float() on a
+    # forward output. Trigger reconstruction is unaffected: Neural Cleanse and
+    # K-Arm differentiate w.r.t. their own mask and pattern tensors, and
+    # gradients reach those whether or not the model's parameters require grad.
+    #
+    # Deliberately done here rather than in load_model, because Fine-Pruning
+    # loads a model in order to fine-tune it and does need the gradients.
+    model.requires_grad_(False)
     trigger = build_trigger(cfg)
 
     test_clean, test_labels = load_clean(cfg.dataset, train=False)

@@ -159,3 +159,31 @@ def _ctx():
     from deadbolt.config import RunContext
 
     return RunContext(seed=0, device="cpu", commit="test")
+
+
+def test_detectors_receive_a_model_that_does_not_require_grad(toy_loader, tmp_path, monkeypatch):
+    """Detectors inspect weights; they never train them.
+
+    A model handed over with requires_grad still set makes every detector that
+    does not think to disable it build an autograd graph it never uses. Trigger
+    reconstruction is unaffected — Neural Cleanse and K-Arm differentiate
+    w.r.t. their own mask and pattern tensors, and gradients reach those either
+    way — so there is no reason for a detector to see live parameter grads.
+    """
+    import inspect
+
+    from deadbolt import scan as scan_mod
+
+    src = inspect.getsource(scan_mod.artefacts)
+    assert "requires_grad_(False)" in src
+
+    # Fine-Pruning loads its own model precisely because it *does* fine-tune,
+    # so the checkpoint loader itself must leave gradients alone.
+    from deadbolt.checkpoints import build_model, load_model, save_model
+
+    path = save_model(
+        build_model("smallcnn", "cifar10", 4), "smallcnn", "cifar10", 4, tmp_path / "m.pt"
+    )
+    assert all(p.requires_grad for p in load_model(path).parameters()), (
+        "load_model must not disable grads — mitigation fine-tunes through them"
+    )

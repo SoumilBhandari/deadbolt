@@ -132,23 +132,50 @@ def build_block(zoo: str) -> str:
             row = [defense]
             for attack in attacks:
                 cell = pa.get((defense, attack))
-                row.append(_fmt(cell["auc"]) if cell else "—")
+                if not cell or cell["auc"] is None:
+                    row.append("—")
+                    continue
+                auc = cell["auc"]
+                row.append(f"**{auc:.3f}**" if auc <= BLIND_SPOT_AUC else f"{auc:.3f}")
             grid.append(row)
-        lines += ["### Per attack", "", _table(grid, header), ""]
-
-    blind = [
-        (d, a, pa[(d, a)]["auc"])
-        for (d, a) in sorted(pa)
-        if pa[(d, a)]["auc"] is not None and pa[(d, a)]["auc"] <= BLIND_SPOT_AUC
-    ]
-    if blind:
         lines += [
-            f"**Structural blind spots** — pairs at or below {BLIND_SPOT_AUC:.2f} AUC, "
-            "i.e. carrying no usable signal about that attack:",
+            "### Per attack",
+            "",
+            "Model-level AUC. **Bold** cells are at or below "
+            f"{BLIND_SPOT_AUC:.2f} — no usable signal about that attack. "
+            "Read down a column to watch one attack defeat a whole family.",
+            "",
+            _table(grid, header),
             "",
         ]
-        lines += [f"- `{d}` vs **{a}** — AUC {auc:.3f}" for d, a, auc in blind]
-        lines += [""]
+
+    # Blind spots as a per-defense summary rather than one bullet per pair:
+    # sixteen bullets is a list, one row per defense is a finding.
+    blind = {}
+    for d, a in sorted(pa):
+        auc = pa[(d, a)]["auc"]
+        if auc is not None and auc <= BLIND_SPOT_AUC:
+            blind.setdefault(d, []).append((a, auc))
+    if blind:
+        rows = [
+            [
+                d,
+                f"{len(v)}/{len([1 for dd, _ in pa if dd == d])}",
+                ", ".join(f"{a} ({auc:.2f})" for a, auc in sorted(v, key=lambda x: x[1])),
+            ]
+            for d, v in sorted(blind.items(), key=lambda kv: -len(kv[1]))
+        ]
+        lines += [
+            "### Structural blind spots",
+            "",
+            f"Attacks each defense carries **no usable signal** about — model-level AUC "
+            f"at or below {BLIND_SPOT_AUC:.2f}. Anything well below 0.50 is worse than a "
+            "coin flip: a defender following it waves triggered inputs through at better "
+            "than random.",
+            "",
+            _table(rows, ["Defense", "Blind on", "Attacks (AUC)"]),
+            "",
+        ]
 
     lines += [
         f"Full tables, including per-input AUC, mask IoU, target-label accuracy and the "
