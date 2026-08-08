@@ -135,10 +135,6 @@ class PoisonPlan:
                 "cannot simultaneously teach and un-teach the trigger"
             )
 
-    @property
-    def n_total(self) -> int:
-        return len(self.payload) + len(self.cover)
-
 
 def plan_poisoning(
     labels: Sequence[int] | np.ndarray,

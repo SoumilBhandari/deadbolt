@@ -261,7 +261,7 @@ def train_one(
         )
         asr = evaluate(model, asr_loader, device)
 
-    valid, reason = _validate(clean_acc, asr)
+    valid, reason = _validate(asr)
     chash = config_hash(asdict(cfg))
     ckpt = out_dir / f"{cfg.dataset}_{cfg.attack or 'clean'}_s{cfg.seed}_{chash}.pt"
     save_model(model, cfg.arch, cfg.dataset, cfg.width, ckpt)
@@ -291,7 +291,7 @@ MAX_CLEAN_DROP = 0.05
 _STEALTH_REASON = "clean-accuracy drop"
 
 
-def _validate(clean_acc: float, asr: float | None) -> tuple[bool, str | None]:
+def _validate(asr: float | None) -> tuple[bool, str | None]:
     """Decide whether this model is a usable test case, from its own metrics.
 
     Attack quality is a *precondition*, not a result. Scoring detectors against

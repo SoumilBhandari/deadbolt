@@ -74,10 +74,6 @@ class BackdoorModel(nn.Module, ABC):
         return self.head(self.penultimate(x))
 
     @property
-    def feature_dim(self) -> int:
-        return self.head.in_features
-
-    @property
     def n_pruned(self) -> int:
         """How many channels are currently gated off."""
         return int((self.channel_mask == 0).sum().item())

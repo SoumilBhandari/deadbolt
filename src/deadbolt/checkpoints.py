@@ -127,9 +127,3 @@ def load_model(path: str | Path, device: torch.device | str = "cpu") -> nn.Modul
     model = build_model(blob["arch"], blob["dataset"], blob["width"])
     model.load_state_dict({k: v.float() for k, v in blob["state_dict"].items()})
     return model.to(device).eval()
-
-
-def checkpoint_meta(path: str | Path) -> dict[str, Any]:
-    """Read a checkpoint's metadata without materialising its weights."""
-    blob = torch.load(Path(path), map_location="cpu", weights_only=True)
-    return {k: v for k, v in blob.items() if k != "state_dict"}
