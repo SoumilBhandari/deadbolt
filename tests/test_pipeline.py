@@ -7,6 +7,7 @@ each piece is individually correct and the composition is not.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -14,11 +15,18 @@ import torch
 
 from deadbolt.attacks import AdaptiveBlend, BadNets, WaNet
 from deadbolt.checkpoints import build_model, load_model, roundtrip_error, save_model
+from deadbolt.data.datasets import SPECS, TransformedDataset, build_augmentation
 from deadbolt.data.poison import PoisonedDataset, plan_poisoning
 from deadbolt.data.splits import defender_split, stratified_indices
 from deadbolt.models.base import BackdoorModel
 from deadbolt.scan import _stratified_prefix
-from deadbolt.train import TrainConfig, TrainResult, apply_stealth_filter, build_trigger
+from deadbolt.train import (
+    TrainConfig,
+    TrainResult,
+    apply_stealth_filter,
+    build_train_dataset,
+    build_trigger,
+)
 from deadbolt.zoo import AttackSweep, ZooSpec, summarise
 
 # --- splits -----------------------------------------------------------------
@@ -64,6 +72,99 @@ def test_defender_and_eval_slices_never_overlap():
     d, e = defender_split(labels, 5)
     assert set(d).isdisjoint(e)
     assert len(d) + len(e) == len(labels)
+
+
+# --- augmentation -----------------------------------------------------------
+
+
+def test_augmentation_is_per_dataset():
+    """MNIST trains without it; asking for an identity wrapper wastes a call."""
+    assert build_augmentation(SPECS["mnist"]) is None
+    assert build_augmentation(SPECS["cifar10"]) is not None
+
+
+def test_gtsrb_is_never_horizontally_flipped():
+    """Traffic signs are chiral: mirroring "keep right" relabels the image.
+
+    Encoded in the spec rather than the training loop, so this asserts on the
+    spec — the training loop only reads it.
+    """
+    assert "hflip" not in SPECS["gtsrb"].augment
+    assert "hflip" in SPECS["cifar10"].augment
+
+
+def test_unknown_augmentation_is_rejected():
+    """A typo must not silently train an unaugmented model that looks augmented."""
+    spec = replace(SPECS["cifar10"], augment=("crop4", "definitely_not_real"))
+    with pytest.raises(ValueError, match="unknown augmentation"):
+        build_augmentation(spec)
+
+
+def test_transformed_dataset_leaves_labels_alone(toy):
+    """Including the rewritten labels of poisoned samples."""
+    wrapped = TransformedDataset(toy, lambda x: x * 0)
+    for i in (0, 7, 42):
+        x, y = wrapped[i]
+        assert y == int(toy.labels[i])
+        assert torch.equal(x, torch.zeros_like(x))
+
+
+def test_augmentation_runs_downstream_of_poisoning(make_toy):
+    """The ordering the threat model requires, asserted on the real composition.
+
+    The attacker ships a poisoned dataset; the victim's pipeline then augments
+    it, crops and all. Augmenting first would stamp an unclipped trigger onto
+    every poisoned sample and overstate ASR — a bug that reads as a strong
+    attack rather than a mistake.
+
+    Goes through build_train_dataset, the same function train_one uses, so
+    reordering the two wrappers in production fails here.
+    """
+    toy = make_toy(n=100, channels=3, size=32)
+    cfg = TrainConfig(
+        dataset="cifar10",  # has augmentation; mnist does not
+        attack="badnets",
+        poison_rate=0.1,
+        attack_kwargs={"target_label": 7, "patch_size": 3, "margin": 0, "value": 1.0},
+    )
+    train_set, spec = build_train_dataset(cfg, toy, toy.labels, build_trigger(cfg))
+
+    assert isinstance(train_set, TransformedDataset), "augmentation must be outermost"
+    assert isinstance(train_set.base, PoisonedDataset), (
+        "poisoning must sit inside augmentation; the reverse order would hand "
+        "the victim's crop a clean image and stamp an unclipped trigger after it"
+    )
+    assert spec is not None and spec.n_poisoned == 10
+
+    # And behaviourally: the transform observes pixels the trigger already wrote.
+    poisoned_idx = int(train_set.base.poison_indices[0])
+    seen: list[bool] = []
+    train_set.transform = lambda x: (seen.append(bool(x[:, -1, -1].eq(1.0).all())), x)[1]
+    train_set[poisoned_idx]
+    clean_idx = next(i for i in range(100) if not train_set.base.is_poisoned(i))
+    train_set[clean_idx]
+
+    assert seen == [True, False], (
+        "the transform must see the trigger on poisoned samples and not on clean "
+        "ones; two Falses mean augmentation ran before poisoning"
+    )
+
+
+def test_clean_models_get_augmentation_but_no_poison_spec(make_toy):
+    """A clean model still trains through the victim's normal pipeline."""
+    toy = make_toy(n=50, channels=3, size=32)
+    cfg = TrainConfig(dataset="cifar10", attack=None)
+    train_set, spec = build_train_dataset(cfg, toy, toy.labels, None)
+    assert spec is None
+    assert isinstance(train_set, TransformedDataset)
+    assert train_set.base is toy
+
+
+def test_augment_false_skips_the_wrapper(make_toy):
+    toy = make_toy(n=50, channels=3, size=32)
+    cfg = TrainConfig(dataset="cifar10", attack=None, augment=False)
+    train_set, _ = build_train_dataset(cfg, toy, toy.labels, None)
+    assert train_set is toy
 
 
 # --- the model contract -----------------------------------------------------

@@ -155,6 +155,60 @@ def get_surrogate(cfg: TrainConfig, out_dir: Path, device: torch.device) -> nn.M
     return model
 
 
+def build_train_dataset(
+    cfg: TrainConfig,
+    base: Dataset,
+    labels: np.ndarray,
+    trigger: Trigger | None,
+) -> tuple[Dataset, PoisonSpec | None]:
+    """Compose the victim's training set: poison first, then augment.
+
+    A function rather than inline setup in :func:`train_one` because the
+    ordering is a scientific claim, not a style choice, and a claim that cannot
+    be reached without training a model does not get tested. See
+    :mod:`deadbolt.data.datasets` for why augmenting before poisoning would
+    overstate ASR.
+
+    Returns the dataset and its :class:`PoisonSpec`, or ``(base, None)`` when
+    ``trigger`` is ``None`` and the model is clean.
+    """
+    spec = SPECS[cfg.dataset]
+    train_set: Dataset = base
+    poison_spec: PoisonSpec | None = None
+
+    if trigger is not None:
+        plan = plan_poisoning(
+            labels, cfg.poison_rate, cfg.poison_mode, trigger, cfg.seed, cfg.cover_rate
+        )
+        # Clean-label attacks keep labels correct — that is the entire point,
+        # so relabelling is suppressed for them.
+        train_set = PoisonedDataset(
+            base,
+            trigger,
+            plan.payload,
+            relabel=(cfg.poison_mode == "dirty_label"),
+            cover_indices=plan.cover,
+        )
+        poison_spec = PoisonSpec(
+            attack=trigger.name,
+            mode=cfg.poison_mode,
+            requested_rate=cfg.poison_rate,
+            achieved_rate=len(plan.payload) / len(labels),
+            n_poisoned=len(plan.payload),
+            n_cover=len(plan.cover),
+            cover_rate=len(plan.cover) / len(labels),
+            trigger_config=trigger.config(),
+        )
+
+    # Augmentation goes last, so a random crop can clip a corner trigger exactly
+    # as it would in a real victim's pipeline. See data/datasets.py.
+    aug = build_augmentation(spec) if cfg.augment else None
+    if aug is not None:
+        train_set = TransformedDataset(train_set, aug)
+
+    return train_set, poison_spec
+
+
 def train_one(
     cfg: TrainConfig,
     out_dir: Path,
@@ -175,40 +229,10 @@ def train_one(
     eval_set, eval_labels = subset(test_clean, eval_idx), test_labels[eval_idx]
 
     trigger = build_trigger(cfg)
-    poison_spec: PoisonSpec | None = None
-    train_set: Dataset = train_clean
+    if trigger is not None and trigger.requires_surrogate:
+        trigger.prepare(get_surrogate(cfg, out_dir, device), device)
 
-    if trigger is not None:
-        if trigger.requires_surrogate:
-            trigger.prepare(get_surrogate(cfg, out_dir, device), device)
-        plan = plan_poisoning(
-            train_labels, cfg.poison_rate, cfg.poison_mode, trigger, cfg.seed, cfg.cover_rate
-        )
-        # Clean-label attacks keep labels correct — that is the entire point,
-        # so relabelling is suppressed for them.
-        train_set = PoisonedDataset(
-            train_clean,
-            trigger,
-            plan.payload,
-            relabel=(cfg.poison_mode == "dirty_label"),
-            cover_indices=plan.cover,
-        )
-        poison_spec = PoisonSpec(
-            attack=trigger.name,
-            mode=cfg.poison_mode,
-            requested_rate=cfg.poison_rate,
-            achieved_rate=len(plan.payload) / len(train_labels),
-            n_poisoned=len(plan.payload),
-            n_cover=len(plan.cover),
-            cover_rate=len(plan.cover) / len(train_labels),
-            trigger_config=trigger.config(),
-        )
-
-    # Augmentation goes last, so a random crop can clip a corner trigger
-    # exactly as it would in a real victim's pipeline. See data/datasets.py.
-    aug = build_augmentation(spec) if cfg.augment else None
-    if aug is not None:
-        train_set = TransformedDataset(train_set, aug)
+    train_set, poison_spec = build_train_dataset(cfg, train_clean, train_labels, trigger)
 
     # A dedicated generator makes shuffling reproducible without depending on
     # global RNG state, which the trigger implementations also draw from.
