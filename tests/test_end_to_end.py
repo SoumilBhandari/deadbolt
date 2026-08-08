@@ -252,7 +252,9 @@ def test_filtered_runs_survive_the_manifest_export(toy_dataset, tmp_path):
     ]
     out = tmp_path / "r"
     write_report("e2e", out, [], records)
-    rows = [json.loads(ln) for ln in (out / "manifest.jsonl").read_text().splitlines() if ln.strip()]
+    rows = [
+        json.loads(ln) for ln in (out / "manifest.jsonl").read_text().splitlines() if ln.strip()
+    ]
     assert len(rows) == 1
     assert rows[0]["valid_testcase"] is False
     assert rows[0]["filter_reason"] == "asr 0.100 < 0.9"

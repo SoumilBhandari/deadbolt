@@ -34,7 +34,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov>=4.1"]
+# ruff is here because CI gates on it. A dev extra that installs the test
+# runner but not the linter produces an environment where everything looks
+# green locally and the lint job fails on push.
+dev = ["pytest>=8.0", "pytest-cov>=4.1", "ruff>=0.6"]
 
 [project.scripts]
 deadbolt = "deadbolt.cli:main"

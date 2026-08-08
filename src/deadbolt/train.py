@@ -218,7 +218,6 @@ def train_one(
     started = time.perf_counter()
     ctx = RunContext.create(cfg.seed)
     device = torch.device(ctx.device)
-    spec = SPECS[cfg.dataset]
 
     train_clean, train_labels = load_clean(cfg.dataset, train=True)
     test_clean, test_labels = load_clean(cfg.dataset, train=False)
