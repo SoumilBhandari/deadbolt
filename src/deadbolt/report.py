@@ -721,7 +721,30 @@ def write_report(zoo: str, out_dir: Path, scans: list[dict], manifest: list[Any]
         },
     }
     (out_dir / "aggregate.json").write_text(json.dumps(aggregate, indent=2, default=str))
+    _export_raw_records(out_dir, scans, manifest)
     return path
+
+
+def _export_raw_records(out_dir: Path, scans: list[dict], manifest: list[Any]) -> None:
+    """Copy the inputs this report was built from in beside its outputs.
+
+    The raw records live under ``$DEADBOLT_ROOT``, which is machine-local and
+    gitignored — so committing only ``report.md`` and ``aggregate.json`` ships
+    conclusions whose inputs nobody else has. That is the thing results/README
+    calls an assertion rather than a result, and it applies to our own numbers
+    first.
+
+    Written latest-wins and deduplicated exactly as :func:`load_scans` returns
+    them, so what lands here is what the report actually scored, not the full
+    append-only history. Superseded rows stay in the storage-root file.
+    """
+    with (out_dir / "scans.jsonl").open("w") as fh:
+        for row in scans:
+            fh.write(json.dumps(row, default=str) + "\n")
+    with (out_dir / "manifest.jsonl").open("w") as fh:
+        for rec in manifest:
+            row = rec.as_dict() if hasattr(rec, "as_dict") else rec
+            fh.write(json.dumps(row, default=str) + "\n")
 
 
 def _aux_keys(scans: list[dict]) -> list[tuple[str, str]]:

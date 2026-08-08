@@ -24,7 +24,7 @@ from deadbolt.data.datasets import SPECS, DatasetSpec
 from deadbolt.defenses import NeuralCleanse, SpectralSignatures
 from deadbolt.report import build_report, model_level, write_report
 from deadbolt.scan import artefacts, load_scans, scan_zoo
-from deadbolt.train import TrainConfig, train_one
+from deadbolt.train import TrainConfig, TrainResult, train_one
 from deadbolt.zoo import AttackSweep, ZooSpec, load_manifest, scannable, summarise
 
 TOY = DatasetSpec("toy", num_classes=4, in_channels=1, image_size=(8, 8), mean=(0.5,), std=(0.5,))
@@ -155,6 +155,62 @@ def test_full_pipeline_train_scan_report(toy_dataset, tmp_path):
     agg = json.loads((out / "aggregate.json").read_text())
     assert agg["zoo"] == "e2e"
     assert agg["population"]["n_scans"] == len(reloaded)
+
+    # --- the traceability guarantee -------------------------------------
+    # results/README promises every committed number can be rebuilt from
+    # committed inputs. The zoo itself lives under $DEADBOLT_ROOT, which is
+    # gitignored and machine-local, so write_report must export the raw rows
+    # it scored alongside its conclusions — otherwise the tables are claims
+    # whose inputs nobody else has, including the author on another machine.
+    scans_out, manifest_out = out / "scans.jsonl", out / "manifest.jsonl"
+    assert scans_out.exists() and manifest_out.exists()
+
+    raw_scans = [json.loads(ln) for ln in scans_out.read_text().splitlines() if ln.strip()]
+    raw_manifest = [
+        TrainResult.from_dict(json.loads(ln))
+        for ln in manifest_out.read_text().splitlines()
+        if ln.strip()
+    ]
+    assert len(raw_scans) == len(reloaded)
+    assert len(raw_manifest) == len(records)
+
+    # Rebuild from the exported records alone and require byte equality. A
+    # rebuild that merely "looks similar" would let the committed tables drift
+    # from the records that supposedly justify them.
+    rebuilt = tmp_path / "rebuilt"
+    write_report("e2e", rebuilt, raw_scans, raw_manifest)
+    for name in ("report.md", "aggregate.json"):
+        assert (rebuilt / name).read_text() == (out / name).read_text(), (
+            f"{name} did not reproduce from its own exported records"
+        )
+
+
+def test_filtered_runs_survive_the_manifest_export(toy_dataset, tmp_path):
+    """Rejected models must reach the committed record, not just the local one.
+
+    Dropping them at export would make the committed manifest agree with the
+    results table by construction — the exact failure the append-only design
+    exists to prevent.
+    """
+    records = [
+        TrainResult(
+            config={"dataset": "mnist", "arch": "smallcnn", "width": 8, "attack": "badnets"},
+            context={"seed": 0, "device": "cpu", "commit": "abc"},
+            clean_accuracy=0.99,
+            attack_success_rate=0.10,
+            poison={"attack": "badnets", "requested_rate": 0.01, "mode": "dirty_label"},
+            checkpoint="c0.pt",
+            config_hash="h0",
+            valid_testcase=False,
+            filter_reason="asr 0.100 < 0.9",
+        )
+    ]
+    out = tmp_path / "r"
+    write_report("e2e", out, [], records)
+    rows = [json.loads(ln) for ln in (out / "manifest.jsonl").read_text().splitlines() if ln.strip()]
+    assert len(rows) == 1
+    assert rows[0]["valid_testcase"] is False
+    assert rows[0]["filter_reason"] == "asr 0.100 < 0.9"
 
 
 def test_scan_is_resumable(toy_dataset, tmp_path):
