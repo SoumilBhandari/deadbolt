@@ -22,7 +22,7 @@ from deadbolt import scan as scan_mod
 from deadbolt import train as train_mod
 from deadbolt.data.datasets import SPECS, DatasetSpec
 from deadbolt.defenses import NeuralCleanse, SpectralSignatures
-from deadbolt.report import build_report, model_level, write_report
+from deadbolt.report import build_report, load_report_inputs, model_level, write_report
 from deadbolt.scan import artefacts, load_scans, scan_zoo
 from deadbolt.train import TrainConfig, TrainResult, train_one
 from deadbolt.zoo import AttackSweep, ZooSpec, load_manifest, scannable, summarise
@@ -183,6 +183,51 @@ def test_full_pipeline_train_scan_report(toy_dataset, tmp_path):
         assert (rebuilt / name).read_text() == (out / name).read_text(), (
             f"{name} did not reproduce from its own exported records"
         )
+
+
+def test_committed_records_are_readable_without_the_live_zoo(tmp_path, monkeypatch):
+    """A fresh clone has results/ but no $DEADBOLT_ROOT, and must still verify.
+
+    If the committed tables could only be rebuilt on the machine that still
+    holds the zoo, they would not be checkable in any practical sense — which
+    is the same as not being checkable.
+    """
+    records = [
+        TrainResult(
+            config={"dataset": "mnist", "arch": "smallcnn", "width": 8, "attack": None},
+            context={"seed": 0, "device": "cpu", "commit": "abc"},
+            clean_accuracy=0.99,
+            attack_success_rate=None,
+            poison=None,
+            checkpoint="c0.pt",
+            config_hash="h0",
+            valid_testcase=True,
+            filter_reason=None,
+        )
+    ]
+    scans = [
+        {
+            "zoo": "zoo1",
+            "checkpoint": "c0.pt",
+            "defense": "strip",
+            "defense_config": {"name": "strip", "access": "runtime"},
+            "result": {"is_backdoored": False, "score": 0.5, "runtime_s": 0.1},
+            "truth": {"is_backdoored": False, "attack": None},
+            "error": None,
+            "context": {"seed": 0, "device": "cpu", "commit": "abc"},
+        }
+    ]
+
+    out = tmp_path / "results" / "zoo1"
+    write_report("zoo1", out, scans, records)
+
+    # Point the storage root somewhere empty: the live zoo is gone.
+    monkeypatch.setenv("DEADBOLT_ROOT", str(tmp_path / "empty_root"))
+    loaded_scans, loaded_manifest = load_report_inputs("zoo1", results_dir=tmp_path / "results")
+
+    assert len(loaded_scans) == 1
+    assert len(loaded_manifest) == 1
+    assert loaded_manifest[0].checkpoint == "c0.pt"
 
 
 def test_filtered_runs_survive_the_manifest_export(toy_dataset, tmp_path):

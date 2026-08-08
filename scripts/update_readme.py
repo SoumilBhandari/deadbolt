@@ -27,21 +27,23 @@ from deadbolt.report import (
     _fmt,
     _split_calibration,
     _table,
+    load_report_inputs,
     model_level,
     per_attack,
 )
-from deadbolt.scan import load_scans
-from deadbolt.zoo import load_manifest, summarise
+from deadbolt.zoo import summarise
 
 START = "<!-- RESULTS:START -->"
 END = "<!-- RESULTS:END -->"
 
 
 def build_block(zoo: str) -> str:
-    scans = load_scans(zoo)
+    scans, manifest = load_report_inputs(zoo)
     if not scans:
-        raise SystemExit(f"zoo {zoo!r} has no scans; run `deadbolt scan` first")
-    manifest = load_manifest(zoo)
+        raise SystemExit(
+            f"zoo {zoo!r} has no scans under $DEADBOLT_ROOT and no committed "
+            f"records at results/{zoo}/scans.jsonl; run `deadbolt scan` first"
+        )
 
     calib, evalset = _split_calibration(scans)
     eval_scans = [s for s in scans if s["checkpoint"] in evalset]
@@ -190,6 +192,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--zoo", required=True)
     ap.add_argument("--readme", default="README.md")
+    ap.add_argument(
+        "--check",
+        action="store_true",
+        help="exit non-zero if the README block is stale, without rewriting it",
+    )
     args = ap.parse_args()
 
     path = Path(args.readme)
@@ -199,7 +206,24 @@ def main() -> int:
 
     head, rest = text.split(START, 1)
     _, tail = rest.split(END, 1)
-    path.write_text(head + build_block(args.zoo) + tail)
+    updated = head + build_block(args.zoo) + tail
+
+    if args.check:
+        # The generated block is the part of the README people actually read
+        # and cite. Regenerating it by hand and forgetting to commit is the
+        # ordinary way a headline number drifts from the records behind it, so
+        # staleness is a failure rather than a warning.
+        if updated != text:
+            print(
+                f"{path} is stale relative to zoo {args.zoo!r}.\n"
+                f"Run: python scripts/update_readme.py --zoo {args.zoo}",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"{path} is up to date with zoo {args.zoo!r}")
+        return 0
+
+    path.write_text(updated)
     print(f"updated {path} from zoo {args.zoo!r}")
     return 0
 

@@ -725,6 +725,42 @@ def write_report(zoo: str, out_dir: Path, scans: list[dict], manifest: list[Any]
     return path
 
 
+def load_report_inputs(zoo: str, results_dir: Path | None = None) -> tuple[list[dict], list[Any]]:
+    """Load the records a report is built from, live zoo first, export second.
+
+    The live zoo under ``$DEADBOLT_ROOT`` wins when present, so a machine that
+    just ran a sweep reports on what it actually produced. Everywhere else —
+    a fresh clone, CI, a second machine — falls back to the records committed
+    under ``results/<zoo>/`` by :func:`write_report`.
+
+    Without the fallback, the committed tables can only be verified on the one
+    machine that happens to still hold the zoo, which is the same as not being
+    verifiable.
+    """
+    from deadbolt.scan import load_scans
+    from deadbolt.zoo import load_manifest
+
+    scans, manifest = load_scans(zoo), load_manifest(zoo)
+    if scans:
+        return scans, manifest
+
+    exported = (results_dir or Path("results")) / zoo
+    scans_path, manifest_path = exported / "scans.jsonl", exported / "manifest.jsonl"
+    if not scans_path.exists():
+        return [], manifest
+
+    from deadbolt.train import TrainResult
+
+    scans = [json.loads(ln) for ln in scans_path.read_text().splitlines() if ln.strip()]
+    if manifest_path.exists():
+        manifest = [
+            TrainResult.from_dict(json.loads(ln))
+            for ln in manifest_path.read_text().splitlines()
+            if ln.strip()
+        ]
+    return scans, manifest
+
+
 def _export_raw_records(out_dir: Path, scans: list[dict], manifest: list[Any]) -> None:
     """Copy the inputs this report was built from in beside its outputs.
 
