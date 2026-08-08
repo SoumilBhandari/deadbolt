@@ -26,17 +26,23 @@ can therefore optimise directly on pixels without knowing dataset statistics.
 
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 import torch
 from torch import Tensor, nn
 
 
-class BackdoorModel(nn.Module):
+class BackdoorModel(nn.Module, ABC):
     """Base class fixing the feature-extraction and pruning contract.
 
     Subclasses implement :meth:`_feature_maps`, set :attr:`head`, and call
     :meth:`_init_channel_mask` once their channel count is known.
+
+    Inherits :class:`~abc.ABC` explicitly. ``nn.Module``'s metaclass is plain
+    ``type``, so ``@abstractmethod`` alone is decorative here — an architecture
+    that forgot :meth:`_feature_maps` would construct happily and then fail
+    somewhere downstream with ``NoneType * Tensor``, a long way from the actual
+    mistake. With ABCMeta in the chain the omission is caught at construction.
     """
 
     head: nn.Linear

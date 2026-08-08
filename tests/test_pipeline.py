@@ -16,6 +16,7 @@ from deadbolt.attacks import AdaptiveBlend, BadNets, WaNet
 from deadbolt.checkpoints import build_model, load_model, roundtrip_error, save_model
 from deadbolt.data.poison import PoisonedDataset, plan_poisoning
 from deadbolt.data.splits import defender_split, stratified_indices
+from deadbolt.models.base import BackdoorModel
 from deadbolt.scan import _stratified_prefix
 from deadbolt.train import TrainConfig, TrainResult, apply_stealth_filter, build_trigger
 from deadbolt.zoo import AttackSweep, ZooSpec, summarise
@@ -63,6 +64,37 @@ def test_defender_and_eval_slices_never_overlap():
     d, e = defender_split(labels, 5)
     assert set(d).isdisjoint(e)
     assert len(d) + len(e) == len(labels)
+
+
+# --- the model contract -----------------------------------------------------
+
+
+def test_an_architecture_missing_feature_maps_is_rejected_at_construction():
+    """The model contract has to be enforced, not merely declared.
+
+    nn.Module's metaclass is plain `type`, so @abstractmethod on BackdoorModel
+    does nothing on its own — an architecture that forgot _feature_maps would
+    construct fine and fail later inside penultimate() with `NoneType * Tensor`,
+    a long way from the omission. BackdoorModel inherits ABC to close that gap;
+    this test fails if someone removes it.
+    """
+
+    class MissingFeatureMaps(BackdoorModel):
+        pass
+
+    with pytest.raises(TypeError, match="_feature_maps"):
+        MissingFeatureMaps()
+
+
+@pytest.mark.parametrize("arch", ["smallcnn", "preactresnet10", "preactresnet18"])
+def test_every_registered_arch_satisfies_the_contract(arch):
+    """Each defense family depends on a different member of it."""
+    model = build_model(arch, "cifar10", 8).eval()
+    x = torch.rand(2, 3, 32, 32)
+    assert model.penultimate(x).shape[0] == 2  # latent-statistics defenses
+    assert model.feature_maps(x).ndim == 4  # fine-pruning ranks channels here
+    assert model.n_pruned == 0
+    assert model.channel_mask.shape[1] == model.feature_maps(x).shape[1]
 
 
 # --- checkpoints ------------------------------------------------------------
