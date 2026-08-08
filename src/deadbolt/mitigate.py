@@ -136,14 +136,18 @@ def fine_prune(
     budget = int(prune_fraction * acts.numel())
 
     curve: list[dict[str, float]] = []
-    pruned = 0
     step = max(1, budget // 10)
     for start in range(0, budget, step):
         chunk = order[start : start + step]
         model.prune(chunk.to(model.channel_mask.device))
-        pruned += int(chunk.numel())
+        # Read the count back off the mask instead of accumulating chunk sizes.
+        # A running counter is a second source of truth that drifts from the
+        # first: prune() is cumulative and idempotent per channel, so a model
+        # that arrives already pruned makes the counter undercount, and any
+        # repeated channel makes it overcount. The mask is the only thing that
+        # actually decides what the network computes.
         acc, _ = eval_fn(model, clean_only=True)
-        curve.append({"pruned": pruned, "clean_accuracy": round(acc, 4)})
+        curve.append({"pruned": model.n_pruned, "clean_accuracy": round(acc, 4)})
         if clean_before - acc > max_clean_drop:
             break
 
@@ -159,7 +163,7 @@ def fine_prune(
         asr_after=asr_after,
         runtime_s=time.perf_counter() - started,
         extra={
-            "pruned_channels": pruned,
+            "pruned_channels": model.n_pruned,
             "total_channels": int(acts.numel()),
             "prune_curve": curve,
             "finetune_epochs": finetune_epochs,

@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 
 from deadbolt.checkpoints import build_model
 from deadbolt.mitigate import MitigationResult, channel_activations, fine_prune
+from deadbolt.models.base import BackdoorModel
 
 
 @pytest.fixture
@@ -81,31 +82,57 @@ def test_fine_prune_reports_cost_alongside_benefit(model, toy_loader, cpu):
     )
 
 
+def test_pruned_count_is_read_from_the_mask_not_accumulated(model, toy_loader, cpu):
+    """The reported count must describe the model, not this call's bookkeeping.
+
+    prune() is cumulative and idempotent per channel, so a running counter
+    drifts from the mask in both directions: it undercounts a model that
+    arrived already pruned, and overcounts if a channel is pruned twice. Only
+    the mask decides what the network actually computes.
+    """
+
+    def eval_fn(m, clean_only: bool = False):
+        return 0.90, (None if clean_only else 0.10)
+
+    # Arrive with three channels already gated off, as a second mitigation pass
+    # or a pre-pruned checkpoint would.
+    model.prune(torch.tensor([0, 1, 2]))
+    result = fine_prune(model, toy_loader, eval_fn, cpu, finetune_epochs=0)
+
+    assert result.extra["pruned_channels"] == model.n_pruned
+    assert result.extra["pruned_channels"] >= 3, "pre-existing pruning was dropped"
+    assert result.extra["pruned_channels"] <= result.extra["total_channels"]
+    # The curve is what the honesty story is told from; it must agree too.
+    assert result.extra["prune_curve"][-1]["pruned"] == model.n_pruned
+
+
 def test_fine_prune_prunes_quietest_channels_first(toy_loader, cpu):
     """The dormant-channel premise: the backdoor lives where clean data does not."""
 
-    class Rigged(nn.Module):
-        """Channel 0 is silent on clean data; the rest are loud."""
+    class Rigged(BackdoorModel):
+        """Channel 0 is silent on clean data; the rest are loud.
+
+        Subclasses the real contract rather than re-implementing it. A
+        hand-rolled double drifts silently the moment BackdoorModel grows a
+        member fine_prune relies on, and the test then passes against an
+        interface the production models do not have.
+        """
 
         def __init__(self):
             super().__init__()
-            self.channel_mask = torch.ones(1, 4, 1, 1)
+            self.normalize = nn.Identity()
+            self.head = nn.Linear(4, 2)
+            self._init_channel_mask(4)
             self.pruned: list[int] = []
 
-        def feature_maps(self, x):
+        def _feature_maps(self, x):
             maps = torch.ones(x.shape[0], 4, 2, 2)
             maps[:, 0] = 0.0
             return maps
 
         def prune(self, channels):
             self.pruned.extend(int(c) for c in channels)
-            self.channel_mask[0, channels.long(), 0, 0] = 0.0
-
-        def eval(self):
-            return self
-
-        def train(self, mode=True):
-            return self
+            super().prune(channels)
 
     rigged = Rigged()
     result = fine_prune(
